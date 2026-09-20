@@ -177,6 +177,111 @@ async function shrinkImage(file, opts = {}) {
 }
 
 // ===== 3. 백엔드 어댑터 =====
+// 로컬 모드와 Firestore 모드가 아래 메서드를 똑같이 제공한다.
+//   subscribe / add / set / remove / issueOrderNo / resetOrderNo / bump
+
+const COLLECTIONS = ['menus', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'settings'];
+
+// ---- 로컬 모드 ----
+// CONFIG.firebase.apiKey 가 비어 있을 때 쓴다.
+// 같은 기기의 탭끼리만 동기화된다 (storage 이벤트). 연습·시연용.
+function createLocalBackend(storageKey = CONFIG.localStorageKey) {
+  const listeners = {};   // { 컬렉션명: [cb, ...] }
+
+  function load() {
+    try { return JSON.parse(localStorage.getItem(storageKey)) || {}; }
+    catch { return {}; }
+  }
+  function save(db) {
+    localStorage.setItem(storageKey, JSON.stringify(db));
+  }
+  function docsOf(db, name) {
+    return Object.entries(db[name] || {}).map(([id, data]) => ({ id, ...data }));
+  }
+  function notify(db, name) {
+    for (const cb of listeners[name] || []) cb(docsOf(db, name));
+  }
+  function notifyAll(db) {
+    for (const name of Object.keys(listeners)) notify(db, name);
+  }
+
+  // 다른 탭에서 바뀌면 이쪽에도 반영한다
+  window.addEventListener('storage', (e) => {
+    if (e.key === storageKey) notifyAll(load());
+  });
+
+  const api = {
+    mode: 'local',
+
+    subscribe(name, cb) {
+      (listeners[name] ||= []).push(cb);
+      cb(docsOf(load(), name));   // 구독 즉시 현재 상태를 한 번 준다
+      return () => {
+        listeners[name] = listeners[name].filter((f) => f !== cb);
+      };
+    },
+
+    addSync(name, data) {
+      const db = load();
+      const id = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+      (db[name] ||= {})[id] = data;
+      save(db); notify(db, name);
+      return id;
+    },
+
+    setSync(name, id, patch) {
+      const db = load();
+      const prev = (db[name] ||= {})[id] || {};
+      db[name][id] = { ...prev, ...patch };   // 필드 단위 merge
+      save(db); notify(db, name);
+    },
+
+    removeSync(name, id) {
+      const db = load();
+      if (db[name]) delete db[name][id];
+      save(db); notify(db, name);
+    },
+
+    bumpSync(name, id, fields) {
+      const db = load();
+      const prev = (db[name] ||= {})[id] || {};
+      const next = { ...prev };
+      for (const [k, delta] of Object.entries(fields)) next[k] = (next[k] || 0) + delta;
+      db[name][id] = next;
+      save(db); notify(db, name);
+    },
+
+    issueOrderNoSync(businessDate) {
+      const db = load();
+      const counters = (db.counters ||= {});
+      const value = nextOrderNo(counters[businessDate] || 0);
+      counters[businessDate] = value;
+      save(db);
+      return value;
+    },
+
+    resetOrderNoSync(businessDate, value) {
+      const db = load();
+      (db.counters ||= {})[businessDate] = value;
+      save(db);
+    },
+
+    clearSync() {
+      localStorage.removeItem(storageKey);
+      notifyAll({});
+    },
+  };
+
+  // 앱이 쓰는 비동기 인터페이스
+  api.add = async (n, d) => api.addSync(n, d);
+  api.set = async (n, i, p) => api.setSync(n, i, p);
+  api.remove = async (n, i) => api.removeSync(n, i);
+  api.bump = async (n, i, f) => api.bumpSync(n, i, f);
+  api.issueOrderNo = async (bd) => api.issueOrderNoSync(bd);
+  api.resetOrderNo = async (bd, v) => api.resetOrderNoSync(bd, v);
+  api.clear = async () => api.clearSync();
+  return api;
+}
 
 // ===== 4. 공통 UI 부품 =====
 
@@ -270,6 +375,52 @@ test('사진은 비율을 지키며 한 변이 maxPx 이하가 된다', () => {
   eq(fitBox(900, 1200, 400), { w: 300, h: 400 });
   eq(fitBox(400, 400, 400), { w: 400, h: 400 });
   eq(fitBox(200, 100, 400), { w: 200, h: 100 }, '원본이 작으면 키우지 않는다');
+});
+
+// ---- 로컬 백엔드 ----
+test('로컬 백엔드가 추가·수정·삭제를 한다', () => {
+  const key = '__test-db-1';
+  localStorage.removeItem(key);
+  const be = createLocalBackend(key);
+  let seen = null;
+  be.subscribe('menus', (docs) => { seen = docs; });
+
+  const id = be.addSync('menus', { name: '아메리카노', price: 1000 });
+  eq(seen.length, 1);
+  eq(seen[0].name, '아메리카노');
+
+  be.setSync('menus', id, { soldOut: true });
+  eq(seen[0].name, '아메리카노', 'set은 덮어쓰지 않고 합친다');
+  eq(seen[0].soldOut, true);
+
+  be.removeSync('menus', id);
+  eq(seen.length, 0);
+  localStorage.removeItem(key);
+});
+
+test('로컬 백엔드가 주문번호를 순서대로 발번한다', () => {
+  const key = '__test-db-2';
+  localStorage.removeItem(key);
+  const be = createLocalBackend(key);
+  eq(be.issueOrderNoSync('2026-09-20'), 1);
+  eq(be.issueOrderNoSync('2026-09-20'), 2);
+  eq(be.issueOrderNoSync('2026-09-21'), 1, '날짜가 바뀌면 1번부터');
+  be.resetOrderNoSync('2026-09-20', 0);
+  eq(be.issueOrderNoSync('2026-09-20'), 1, '초기화하면 다시 1번');
+  localStorage.removeItem(key);
+});
+
+test('로컬 백엔드가 필드를 원자적으로 증감한다', () => {
+  const key = '__test-db-3';
+  localStorage.removeItem(key);
+  const be = createLocalBackend(key);
+  const id = be.addSync('ingredients', { name: '우유', current: 1000 });
+  be.bumpSync('ingredients', id, { current: -150 });
+  be.bumpSync('ingredients', id, { current: -150 });
+  let seen = null;
+  be.subscribe('ingredients', (docs) => { seen = docs; });
+  eq(seen[0].current, 700);
+  localStorage.removeItem(key);
 });
 
 // ===== 7. 시작 =====
