@@ -214,7 +214,14 @@
      AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
   .order-screen { display: flex; gap: 16px; height: 100%; }
-  .order-menu { flex: 3; min-width: 0; height: 100%; overflow-y: auto; }
+  /* .order-menu는 이제 스크롤 상자가 아니라 [스크롤 영역(.menu-scroll) + 화살표] 를
+     세로로 쌓는 틀이다. 스크롤 상자 "안"에 화살표 자리를 padding으로 비워 두면,
+     내용이 넘칠 때 그 padding 안까지 다음 줄이 비집고 들어와 버린다(스크롤 컨테이너의
+     padding은 넘치는 내용을 막는 경계가 아니라 스크롤 가능한 여유 공간일 뿐이라서).
+     그래서 화살표를 스크롤 영역 "밖" 형제로 두어, 항상 자기 자리(고정 높이)만
+     차지하고 타일 줄과는 절대 겹치지 않게 한다. */
+  .order-menu { flex: 3; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
+  .menu-scroll { flex: 1; min-height: 0; overflow-y: auto; }
   /* 주문하기는 항상 눌려야 하는 버튼이라 담은 내용이 길어져도 스크롤에 묻히면 안 된다.
      그래서 패널 전체를 스크롤하는 대신, 카드 목록(.cart-list)만 안에서 스크롤하고
      머리글·합계·버튼은 항상 제자리에 고정한다. min-height: 0은 flex 자식이
@@ -226,15 +233,19 @@
     padding: 16px;
   }
   /* 좁은 화면(또는 아주 크게 글자 크기)에서 가로 스크롤 없이 위아래로 쌓는다.
-     order-screen의 높이를 main 박스에 그대로 고정해 두고(height: 100%, auto 아님),
-     메뉴 타일은 최대 비율까지만 차지한 뒤 그 안에서 스크롤하게 하고(flex-grow: 0),
-     장바구니가 남는 공간을 전부 가져가게 한다(flex: 1). 이렇게 하면 두 영역의
-     높이 합이 항상 order-screen(= main) 높이를 넘지 않는다 — 화면 폭이나 글자
-     크기가 바뀌어도 footer를 침범할 여지가 구조적으로 없다. */
+     order-screen의 높이는 main 박스에 그대로 고정해 둔다(height: 100%, auto 아님).
+     장바구니는 담긴 만큼만 차지하다가(flex-grow: 0) 화면의 절반을 넘지 않게 막고
+     (max-height), 메뉴가 남는 공간을 전부 가져간다(flex: 1) — 학생이 실제로 가장
+     자주 쓰는 곳은 메뉴 타일이고, 장바구니는 주문을 시작할 때 항상 비어 있어
+     처음 화면을 볼 때 메뉴가 더 넓게 보이도록 우선순위를 뒀다. 두 영역의 높이 합은
+     항상 order-screen(= main) 높이와 같으므로 footer를 침범할 여지가 없다. */
   @media (max-width: 760px) {
     .order-screen { flex-direction: column; height: 100%; }
-    .order-menu { flex: 0 1 auto; height: auto; max-height: 42%; max-width: none; overflow-y: auto; }
-    .order-cart { flex: 1 1 auto; min-height: 0; height: auto; max-width: none; }
+    .order-menu { flex: 1 1 auto; min-height: 0; height: auto; max-width: none; }
+    .order-cart {
+      flex: 0 0 auto; min-height: 0; height: auto; max-height: 50%; max-width: none;
+      overflow-y: auto;   /* 극단적으로 좁은 화면에서도 내용이 상자 밖으로 흘러넘치지 않게 하는 안전장치 */
+    }
   }
 
   .menu-grid {
@@ -265,7 +276,27 @@
 
   .cart-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .cart-head h2 { margin: 0; font-size: calc(18px * var(--scale)); color: var(--brand); flex: 1; }
-  .cart-list { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; overflow-y: auto; }
+  /* .cart-list도 .order-menu와 같은 구조다: [스크롤 영역(.cart-scroll) + 화살표]를
+     세로로 쌓는 틀이라, 카드 목록만 안에서 스크롤되고 화살표는 항상 제자리에 있다. */
+  /* overflow: hidden — 아주 좁은 화면에서 메뉴 한 줄을 지키느라 장바구니가 빠듯하게
+     줄어드는 극단적인 경우에도, 안쪽 내용(카드+화살표)이 이 틀 밖으로 흘러넘쳐
+     주문하기 버튼을 덮는 일이 없게 하는 안전장치다(overflow: hidden이 있어야
+     이 틀도 "내용 크기 아래로 줄어들 수 있는" 자동 최소 높이를 갖는다). */
+  .cart-list { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
+  .cart-scroll { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; overflow-y: auto; }
+  /* 스크롤로 가려진 내용이 더 있을 때만 나타나는 화살표. 늘 자기 자리(고정 높이)만
+     차지해 타일·카드와 결코 겹치지 않는다. 색이 아니라 모양(⌄)으로 "더 있음"을 알린다.
+     visibility로 켜고 꺼서(= display 아님) 안 보일 때도 자리는 그대로 남긴다 —
+     그래야 화살표가 나타나거나 사라져도 위쪽 스크롤 영역 크기 계산이 흔들리지 않는다. */
+  .scroll-cue {
+    visibility: hidden; flex-shrink: 0; margin: 3px auto 0;
+    width: 40px; height: 24px; border-radius: 999px;
+    background: var(--panel); border: 2px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; font-weight: 900; line-height: 1; color: var(--brand-dark);
+    box-shadow: 0 2px 8px rgba(0,0,0,.15); pointer-events: none;
+  }
+  .scroll-cue.show { visibility: visible; }
   .cart-card {
     display: flex; align-items: center; gap: 12px; padding: 10px;
     background: var(--bg); border: 2px solid var(--line); border-radius: 16px;
@@ -660,6 +691,32 @@ function applyFontScale(key) {
   for (const b of document.querySelectorAll('.font-switch button')) {
     b.classList.toggle('on', b.dataset.scale === state.fontScale);
   }
+  // 글자 크기가 바뀌면 타일 이름·장바구니 이름의 실제 렌더 높이가 달라진다.
+  // 주문 화면이 지금 떠 있다면 줄 단위 스크롤 한도를 다시 재야 한다 — 그대로 두면
+  // 이전 크기 기준으로 계산해 둔 max-height가 새 글자 크기에서는 줄 중간을 자를 수
+  // 있다. 화면 전체를 다시 그리면(render) 다른 화면(관리 화면 입력 중인 값 등)이
+  // 끊기므로, 주문 화면 패널만 찾아 다시 잰다.
+  reclampOrderScreen();
+}
+
+// applyFontScale이 호출하는, 주문 화면 전용 재계산. 주문 화면이 떠 있지 않으면
+// 아무 것도 하지 않는다(다른 화면에는 이런 패널이 없다). 실제 계산은
+// layoutOrderPanels()가 두 패널을 함께 맞춘다(주석 참고).
+function reclampOrderScreen() {
+  const menuPane = document.querySelector('.order-menu');
+  const menuScroll = document.querySelector('.menu-scroll');
+  const cartPane = document.querySelector('.order-cart');
+  const cartList = document.querySelector('.cart-list');
+  const cartScroll = document.querySelector('.cart-scroll');
+  if (!menuPane || !menuScroll || !cartPane || !cartList || !cartScroll) return;
+  const { cartTruncated, menuTruncated } = layoutOrderPanels(
+    menuPane, menuScroll, [...menuScroll.querySelectorAll('.tile')],
+    cartPane, cartList, cartScroll, [...cartScroll.querySelectorAll('.cart-card')],
+  );
+  const menuCue = menuPane.querySelector('.scroll-cue');
+  if (menuCue) attachScrollCue(menuScroll, menuCue, menuTruncated);
+  const cartCue = cartList.querySelector('.scroll-cue');
+  if (cartCue) attachScrollCue(cartScroll, cartCue, cartTruncated);
 }
 
 // 상단바 가/가/가 버튼 전용 — 이 기기만의 선택으로 기억한다(localStorage).
@@ -1211,14 +1268,147 @@ function buildCartCard(item) {
   return card;
 }
 
+// ---- 스크롤 패널이 항목을 중간에서 자르지 않게 하기 ----
+// AAC 원칙(사진 + 글자가 항상 함께)이 걸린 곳: 타일 줄이 반만 보이면 이름 글자도
+// 반만 보인다. 그래서 "화면 비율의 몇 %"처럼 어림잡지 않고, 실제로 렌더된 각 항목의
+// 위치를 재서 항상 "줄 전체" 단위로만 보이게 자른다. 이름이 길어 두 줄로 접히는
+// 항목이 섞여 있어도, 평균이 아니라 각 항목의 실제 위치를 보고 판단하므로 안전하다.
+
+// 항목들을 실제 렌더된 위치 기준으로 "줄"별로 묶는다(순수 측정, 스타일은 안 건드림).
+function measureRows(pane, items) {
+  const paneTop = pane.getBoundingClientRect().top - pane.scrollTop;
+  const rows = [];
+  for (const item of items) {
+    const rect = item.getBoundingClientRect();
+    const top = rect.top - paneTop;
+    const bottom = top + rect.height;
+    const row = rows.find((r) => Math.abs(r.top - top) < 1);
+    if (row) row.bottom = Math.max(row.bottom, bottom);
+    else rows.push({ top, bottom });
+  }
+  rows.sort((a, b) => a.top - b.top);
+  return rows;
+}
+
+// pane이 지금 가진 공간(clientHeight) 안에서 "줄 전체"만 보이도록 max-height를
+// 맞춘다. 반환값은 잘린 줄이 있는지 여부 — 스크롤 화살표를 켤지 그대로 쓴다.
+function clampToRows(pane, rows) {
+  const cs = getComputedStyle(pane);
+  const padTop = parseFloat(cs.paddingTop) || 0;
+  const padBottom = parseFloat(cs.paddingBottom) || 0;
+  const available = pane.clientHeight - padTop - padBottom;
+  let fit = rows[0].bottom;   // 한 줄도 안 들어가는 극단적인 경우에도 첫 줄은 보여준다
+  for (const row of rows) {
+    if (row.bottom > available) break;
+    fit = row.bottom;
+  }
+  pane.style.maxHeight = (fit + padTop + padBottom) + 'px';
+  return fit < rows[rows.length - 1].bottom;
+}
+
+// 메뉴 타일 패널과 장바구니 패널의 높이를 함께 정한다. 왜 따로따로가 아니라 "함께"인가:
+// 좁은 화면에서는 장바구니가 늘어난 만큼 메뉴가 줄어드는 구조라, 장바구니가 커지면
+// 메뉴 타일 줄이 중간에서 잘릴 수 있다(이번 라운드에서 고치는 문제).
+// 그렇다고 메뉴에 무조건 최소 높이를 주기만 하면, 이번엔 메뉴+장바구니 합이
+// order-screen(= main) 높이를 넘어 footer를 다시 침범한다(Fix round 1에서 고친 문제).
+// 그래서 순서를 정해 둘을 한 번에 계산한다:
+//   1) 메뉴 "한 줄" 최소 높이를 먼저 잰다 — 메뉴는 이 아래로 줄어들 수 없다.
+//   2) 장바구니의 최대 높이를 "전체 − 그 한 줄 − 간격"으로 역산한다
+//      (기존 CSS 상한 50%와 비교해 더 작은 쪽을 쓴다).
+//   3) 장바구니를 그 한도 안에서 카드 목록 줄 단위로 자리 잡게 한다.
+//   4) 장바구니가 실제로 정착한 높이만 빼고 나머지를 전부 메뉴에게 주고,
+//      그 안에서 다시 줄 단위로 자른다 — 장바구니가 작으면 메뉴는 한 줄보다
+//      더 많이 보일 수 있다.
+// 화면을 좌우로 나누는 넓은 화면에서는 두 패널이 각자 height: 100%로 독립적이라
+// 이런 다툼이 없으므로 각자 잰다.
+// menuPane/cartList는 [스크롤 영역 + 화살표]를 세로로 쌓는 틀이고,
+// menuScroll/cartScroll이 실제로 스크롤되는(overflow-y: auto) 안쪽 상자다.
+// 타일/카드 줄 단위 계산은 항상 안쪽 상자를 기준으로 한다.
+function layoutOrderPanels(menuPane, menuScroll, menuItems, cartPane, cartList, cartScroll, cartItems) {
+  const screen = menuPane.parentElement;   // .order-screen
+  const stacked = getComputedStyle(screen).flexDirection === 'column';
+
+  // 이전에 재 둔 값이 남아 있으면 지금 실제로 쓸 수 있는 공간을 잘못 잰다
+  // (예: 글자 크기가 커져 옆 패널이 자라난 뒤라면, 예전 값 그대로는 "얼마나
+  // 남았는지"를 알 수 없다) — 늘 지우고 나서 새로 잰다.
+  menuPane.style.maxHeight = '';
+  menuScroll.style.maxHeight = '';
+  cartPane.style.maxHeight = '';
+  cartScroll.style.maxHeight = '';
+
+  if (!stacked || menuItems.length === 0) {
+    const cartTruncated = cartItems.length ? clampToRows(cartScroll, measureRows(cartScroll, cartItems)) : false;
+    const menuTruncated = menuItems.length ? clampToRows(menuScroll, measureRows(menuScroll, menuItems)) : false;
+    return { cartTruncated, menuTruncated };
+  }
+
+  // 화살표는 항상 자기 자리(고정 높이)를 차지하므로, 보이든 안 보이든 그 높이를
+  // "메뉴 틀 전체가 최소한 필요로 하는 높이"에 더해야 한다.
+  const menuCue = menuPane.querySelector('.scroll-cue');
+  const cueBox = menuCue.getBoundingClientRect();
+  const cueMarginTop = parseFloat(getComputedStyle(menuCue).marginTop) || 0;
+  const cueReserve = cueBox.height + cueMarginTop;
+
+  const menuRows = measureRows(menuScroll, menuItems);
+  const oneRow = menuRows[0].bottom;
+  const menuFloor = oneRow + cueReserve;   // .order-menu 틀 전체 기준 최소 높이(한 줄 + 화살표 자리)
+
+  const gap = parseFloat(getComputedStyle(screen).rowGap) || 0;
+  const screenHeight = screen.clientHeight;
+
+  // CSS의 max-height: 50%는 JS가 실패할 때만 쓰이는 정적 안전망이다 — 여기서
+  // getComputedStyle로 다시 읽지 않는다(퍼센트가 항상 px로 풀리는 게 아니라,
+  // 컨테이닝 블록에 따라 "50%" 문자열 그대로 돌아올 수 있어 parseFloat가
+  // 50%를 50px로 잘못 읽는 함정이 있다). 아래 계산이 이미 "메뉴 한 줄은 반드시
+  // 남긴다"는 조건으로 상한을 정하므로 그 자체로 안전하다.
+  const cartCap = Math.max(0, screenHeight - gap - menuFloor);
+  cartPane.style.maxHeight = cartCap + 'px';
+
+  const cartTruncated = cartItems.length ? clampToRows(cartScroll, measureRows(cartScroll, cartItems)) : false;
+
+  const cartActual = cartPane.getBoundingClientRect().height;
+  const menuWrapperAvailable = Math.max(menuFloor, screenHeight - gap - cartActual);
+  menuPane.style.maxHeight = menuWrapperAvailable + 'px';
+  menuScroll.style.maxHeight = (menuWrapperAvailable - cueReserve) + 'px';
+  const menuTruncated = clampToRows(menuScroll, menuRows);
+
+  return { cartTruncated, menuTruncated };
+}
+
+// 스크롤로 가려진 내용이 더 있을 때만 화살표 표시를 보여주고, 끝까지 스크롤하면 감춘다.
+// 색으로만 "더 있음"을 표시하지 않도록(접근성 원칙 2) 화살표 모양을 쓴다.
+// truncated(clampPaneToWholeRows의 반환값)가 false면 애초에 잘린 줄이 없다는
+// 뜻이라 스크롤 위치와 무관하게 화살표를 절대 보여주지 않는다.
+// render()가 패널을 통째로 새로 만들 때뿐 아니라, reclampOrderScreen()이 같은
+// DOM을 재사용해 다시 부를 때도 있다 — 이전에 달아 둔 리스너를 먼저 떼어 내
+// 스크롤 리스너가 쌓이지 않게 한다.
+function attachScrollCue(pane, cue, truncated) {
+  if (pane._scrollCueHandler) {
+    pane.removeEventListener('scroll', pane._scrollCueHandler);
+    pane._scrollCueHandler = null;
+  }
+  if (!truncated) { cue.classList.remove('show'); return; }
+  function update() {
+    const hasMore = pane.scrollHeight - pane.scrollTop - pane.clientHeight > 1;
+    cue.classList.toggle('show', hasMore);
+  }
+  pane._scrollCueHandler = update;
+  pane.addEventListener('scroll', update);
+  update();
+}
+
 // 주문 화면 본체 — 왼쪽 메뉴 타일 / 오른쪽 담은 내용.
 function renderOrderCartScreen(el) {
   const wrap = document.createElement('div');
   wrap.className = 'order-screen';
 
   // ---- 왼쪽: 메뉴 타일 ----
+  // .order-menu(틀) 안에 [.menu-scroll(스크롤 영역) + 화살표]를 쌓는다.
+  // 화살표가 스크롤 영역 "밖"에 있어야 타일 줄과 절대 겹치지 않는다.
   const menuPane = document.createElement('div');
   menuPane.className = 'order-menu';
+  const menuScroll = document.createElement('div');
+  menuScroll.className = 'menu-scroll';
   const grid = document.createElement('div');
   grid.className = 'menu-grid';
   const menus = sortedMenus(state.menus).filter((m) => m.visible !== false);
@@ -1230,7 +1420,13 @@ function renderOrderCartScreen(el) {
   } else {
     for (const m of menus) grid.appendChild(buildMenuTile(m));
   }
-  menuPane.appendChild(grid);
+  menuScroll.appendChild(grid);
+  menuPane.appendChild(menuScroll);
+  const menuCue = document.createElement('div');
+  menuCue.className = 'scroll-cue';
+  menuCue.setAttribute('aria-hidden', 'true');
+  menuCue.textContent = '⌄';
+  menuPane.appendChild(menuCue);
 
   // ---- 오른쪽: 담은 내용 ----
   const cartPane = document.createElement('div');
@@ -1258,16 +1454,25 @@ function renderOrderCartScreen(el) {
   }
   cartPane.appendChild(head);
 
+  // .cart-list(틀) 안에 [.cart-scroll(스크롤 영역) + 화살표]를 쌓는다 — 메뉴와 같은 구조.
   const list = document.createElement('div');
   list.className = 'cart-list';
+  const cartScroll = document.createElement('div');
+  cartScroll.className = 'cart-scroll';
   if (cart.length === 0) {
     const hint = document.createElement('p');
     hint.className = 'empty-hint';
     hint.textContent = '메뉴를 눌러 담아 주세요.';
-    list.appendChild(hint);
+    cartScroll.appendChild(hint);
   } else {
-    for (const item of cart) list.appendChild(buildCartCard(item));
+    for (const item of cart) cartScroll.appendChild(buildCartCard(item));
   }
+  list.appendChild(cartScroll);
+  const cartCue = document.createElement('div');
+  cartCue.className = 'scroll-cue';
+  cartCue.setAttribute('aria-hidden', 'true');
+  cartCue.textContent = '⌄';
+  list.appendChild(cartCue);
   cartPane.appendChild(list);
 
   // 금액 표시(off): 이번 버전에서는 가격·합계를 DOM에 아예 만들지 않는다.
@@ -1288,6 +1493,16 @@ function renderOrderCartScreen(el) {
 
   wrap.append(menuPane, cartPane);
   el.appendChild(wrap);
+
+  // DOM에 실제로 붙은 뒤에만 렌더된 크기를 잴 수 있다 — 타일/카드 줄이 잘리지 않게
+  // 여기서 두 패널의 높이를 함께 맞추고(layoutOrderPanels), 더 있을 때만 스크롤
+  // 화살표를 켠다.
+  const { cartTruncated, menuTruncated } = layoutOrderPanels(
+    menuPane, menuScroll, [...grid.querySelectorAll('.tile')],
+    cartPane, list, cartScroll, [...cartScroll.querySelectorAll('.cart-card')],
+  );
+  attachScrollCue(cartScroll, cartCue, cartTruncated);
+  attachScrollCue(menuScroll, menuCue, menuTruncated);
 }
 
 // 주문 완료 — 화면을 덮는 큰 번호. 3초 뒤 자동으로 빈 주문 화면으로 돌아간다.
