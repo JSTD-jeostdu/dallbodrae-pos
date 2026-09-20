@@ -135,6 +135,47 @@ function resetPlan(counterValue, startFrom, waitingCount) {
   };
 }
 
+// ---- 사진 리사이즈 (PRD 6.3) ----
+// Firebase Storage를 쓰지 않고 Firestore 문서에 data URL로 넣기 때문에
+// 업로드 시점에 반드시 줄여야 한다.
+
+// base64 data URL의 실제 바이트 수
+function dataUrlBytes(dataUrl) {
+  const b64 = dataUrl.slice(dataUrl.indexOf(',') + 1);
+  const padding = (b64.match(/=+$/) || [''])[0].length;
+  return Math.floor(b64.length * 3 / 4) - padding;
+}
+
+// 비율을 지키며 한 변이 maxPx 이하가 되는 크기. 원본이 더 작으면 그대로 둔다.
+function fitBox(w, h, maxPx) {
+  const ratio = Math.min(1, maxPx / Math.max(w, h));
+  return { w: Math.round(w * ratio), h: Math.round(h * ratio) };
+}
+
+// DOM과 캔버스를 사용하므로 자가 테스트 대상이 아니다.
+// File → 줄인 JPEG data URL. 목표 용량을 넘으면 품질을 낮춰 최대 3번 재시도한다.
+async function shrinkImage(file, opts = {}) {
+  const maxPx = opts.maxPx ?? CONFIG.photoMaxPx;
+  const maxBytes = opts.maxBytes ?? CONFIG.photoMaxBytes;
+  let quality = opts.quality ?? CONFIG.photoQuality;
+
+  // imageOrientation: 휴대폰으로 세로로 찍은 사진이 눕지 않게 EXIF 회전을 반영한다
+  const bitmap = await createImageBitmap(file, { imageOrientation: 'from-image' });
+  const { w, h } = fitBox(bitmap.width, bitmap.height, maxPx);
+  const canvas = document.createElement('canvas');
+  canvas.width = w; canvas.height = h;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0, w, h);
+  bitmap.close?.();
+
+  let dataUrl = canvas.toDataURL('image/jpeg', quality);
+  for (let i = 0; i < 3 && dataUrlBytes(dataUrl) > maxBytes; i++) {
+    quality = Math.max(0.3, quality - 0.15);
+    dataUrl = canvas.toDataURL('image/jpeg', quality);
+  }
+  return dataUrl;
+}
+
 // ===== 3. 백엔드 어댑터 =====
 
 // ===== 4. 공통 UI 부품 =====
@@ -213,6 +254,22 @@ test('시작 번호가 1 미만이거나 정수가 아니면 거부한다', () =
   eq(resetPlan(57, -3, 0).ok, false);
   eq(resetPlan(57, 1.5, 0).ok, false);
   eq(resetPlan(57, NaN, 0).ok, false);
+});
+
+// ---- 사진 ----
+test('data URL 바이트 수를 센다', () => {
+  // 'AAAA' 는 base64 4글자 → 3바이트
+  eq(dataUrlBytes('data:image/jpeg;base64,AAAA'), 3);
+  // 패딩 '=' 은 바이트에서 뺀다
+  eq(dataUrlBytes('data:image/jpeg;base64,AAA='), 2);
+  eq(dataUrlBytes('data:image/jpeg;base64,AA=='), 1);
+});
+
+test('사진은 비율을 지키며 한 변이 maxPx 이하가 된다', () => {
+  eq(fitBox(1200, 900, 400), { w: 400, h: 300 });
+  eq(fitBox(900, 1200, 400), { w: 300, h: 400 });
+  eq(fitBox(400, 400, 400), { w: 400, h: 400 });
+  eq(fitBox(200, 100, 400), { w: 200, h: 100 }, '원본이 작으면 키우지 않는다');
 });
 
 // ===== 7. 시작 =====
