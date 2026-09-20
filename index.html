@@ -194,6 +194,7 @@
     min-height: 46px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--line);
     background: var(--panel); color: var(--ink); font-size: calc(15px * var(--scale));
   }
+  .field .hint { color: var(--muted); font-size: calc(12px * var(--scale)); font-weight: 400; line-height: 1.5; }
   .photo-pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
   .photo-preview {
     width: 72px; height: 72px; border-radius: 12px; border: 2px solid var(--line);
@@ -533,13 +534,20 @@ async function saveSettings(patch) {
 
 // ---- 글자 크기 (PRD 3.1.7) ----
 // 학생마다 편차가 커서 설정 깊숙이 넣지 않고 상단바에 상시 노출한다.
-function setFontScale(key) {
+// 화면에 실제로 적용만 한다 — 이 기기의 선택으로 "기억"할지는 호출하는 쪽이 정한다.
+function applyFontScale(key) {
   state.fontScale = FONT_SCALES[key] ? key : 'normal';
   document.documentElement.style.setProperty('--scale', FONT_SCALES[state.fontScale]);
-  localStorage.setItem(CONFIG.fontScaleKey, state.fontScale);
   for (const b of document.querySelectorAll('.font-switch button')) {
     b.classList.toggle('on', b.dataset.scale === state.fontScale);
   }
+}
+
+// 상단바 가/가/가 버튼 전용 — 이 기기만의 선택으로 기억한다(localStorage).
+// 학생이 자기 앞 태블릿만 조절하는 것이므로 다른 기기에 영향을 주면 안 된다.
+function setFontScale(key) {
+  applyFontScale(key);
+  localStorage.setItem(CONFIG.fontScaleKey, state.fontScale);
 }
 
 // ---- 역할 ----
@@ -930,6 +938,7 @@ function renderSettingsTab(body) {
           <option value="large">크게</option>
           <option value="xlarge">아주 크게</option>
         </select>
+        <small class="hint">아직 상단바에서 글자 크기를 직접 고르지 않은 기기에만 적용돼요. 이미 고른 기기(예: 이 화면)에는 영향을 주지 않아요.</small>
       </label>
       <label class="field">
         <span>제조 지연 강조 기준 (분)</span>
@@ -1164,6 +1173,11 @@ if (new URLSearchParams(location.search).has('selftest')) {
   }
   state.backend.subscribe('settings', (docs) => {
     state.settings = { ...CONFIG.defaults, ...(docs.find((d) => d.id === 'app') || {}) };
+    // 이 기기가 직접 고른 글자 크기가 없을 때만 선생님의 기본값을 따라간다.
+    // (있으면 학생이 이미 고른 값을 절대 덮어쓰지 않는다)
+    if (!localStorage.getItem(CONFIG.fontScaleKey)) {
+      applyFontScale(state.settings.fontScale);
+    }
     render();
   });
 
@@ -1171,7 +1185,8 @@ if (new URLSearchParams(location.search).has('selftest')) {
   // Task 11에서 Firestore를 붙이면 '연결됨'으로 바뀐다.
   document.getElementById('net-tag').textContent = '연습 모드';
 
-  setFontScale(localStorage.getItem(CONFIG.fontScaleKey) || CONFIG.defaults.fontScale);
+  // 글자 크기 초기값: 이 기기의 선택 → 선생님 기본값 → 전역 기본값 순서로 정한다.
+  applyFontScale(localStorage.getItem(CONFIG.fontScaleKey) || state.settings.fontScale || CONFIG.defaults.fontScale);
   for (const b of document.querySelectorAll('.font-switch button')) {
     b.onclick = () => setFontScale(b.dataset.scale);
   }
