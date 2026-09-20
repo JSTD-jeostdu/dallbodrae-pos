@@ -130,6 +130,81 @@
   .modal h3 { margin: 0 0 12px; font-size: calc(20px * var(--scale)); color: var(--ink); }
   .modal p { margin: 0; color: var(--muted); line-height: 1.7; font-size: calc(15px * var(--scale)); white-space: pre-line; }
   .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
+
+  /* ---- 관리 화면 : PIN 잠금 ---- */
+  .card {
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 28px; max-width: 420px; margin: 24px auto; text-align: center;
+    box-shadow: 0 3px 10px rgba(0,0,0,.06);
+  }
+  .pin-gate h2 { margin: 0 0 8px; color: var(--brand); font-size: calc(22px * var(--scale)); }
+  .pin-gate p { color: var(--muted); font-size: calc(15px * var(--scale)); margin: 0; }
+  .pin-dots { display: flex; gap: 14px; justify-content: center; margin: 24px 0; }
+  .pin-dot { width: 20px; height: 20px; border-radius: 50%; border: 3px solid var(--line); }
+  .pin-dot.on { background: var(--brand); border-color: var(--brand); }
+  .pin-dots.shake { animation: shake .4s; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-10px); }
+    75% { transform: translateX(10px); }
+  }
+  .keypad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; max-width: 320px; margin: 0 auto; }
+  .key { min-height: 68px; font-size: 26px; font-weight: 700; border-radius: 14px; background: var(--panel); border: 2px solid var(--line); }
+  .key.blank { visibility: hidden; }
+
+  /* ---- 관리 화면 : 탭 · 메뉴 목록 · 입력 폼 ---- */
+  .admin { max-width: 720px; margin: 0 auto; }
+  .admin-tabs { display: flex; gap: 8px; margin-bottom: 18px; flex-wrap: wrap; }
+  .admin-tab {
+    flex: 1; min-width: 100px; min-height: 52px; background: var(--panel);
+    border: 2px solid var(--line); border-radius: var(--radius); font-weight: 700;
+    font-size: calc(16px * var(--scale)); color: var(--muted);
+  }
+  .admin-tab.on { background: var(--brand); border-color: var(--brand-dark); color: #fff; }
+
+  .menu-tab-head { margin-bottom: 14px; }
+  .menu-list { display: flex; flex-direction: column; gap: 12px; }
+  .menu-row {
+    display: flex; align-items: center; gap: 14px; padding: 12px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+    flex-wrap: wrap;
+  }
+  .menu-thumb {
+    width: 56px; height: 56px; border-radius: 12px; background: var(--bg);
+    border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
+    font-size: 28px; overflow: hidden; flex-shrink: 0;
+  }
+  .menu-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .menu-info { flex: 1; min-width: 100px; }
+  .menu-name { font-weight: 700; font-size: calc(16px * var(--scale)); display: flex; align-items: center; gap: 8px; }
+  .menu-price { color: var(--muted); font-size: calc(14px * var(--scale)); }
+  .badge { font-size: calc(12px * var(--scale)); font-weight: 700; padding: 2px 10px; border-radius: 999px; }
+  .badge.soldout { background: var(--danger); color: #fff; }
+  .menu-actions { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .icon-btn {
+    width: 40px; height: 40px; border-radius: 10px; background: var(--panel);
+    border: 2px solid var(--line); font-size: 16px; color: var(--ink);
+  }
+  .btn.small { padding: 8px 14px; min-height: 40px; font-size: calc(13px * var(--scale)); }
+  .empty-hint { color: var(--muted); text-align: center; padding: 40px 0; font-size: calc(15px * var(--scale)); }
+
+  .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; text-align: left; }
+  .field span { font-weight: 700; font-size: calc(14px * var(--scale)); color: var(--ink); }
+  .field input, .field select {
+    min-height: 46px; padding: 8px 12px; border-radius: 12px; border: 2px solid var(--line);
+    background: var(--panel); color: var(--ink); font-size: calc(15px * var(--scale));
+  }
+  .photo-pick { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+  .photo-preview {
+    width: 72px; height: 72px; border-radius: 12px; border: 2px solid var(--line);
+    background: var(--bg); display: flex; align-items: center; justify-content: center;
+    font-size: calc(12px * var(--scale)); color: var(--muted); overflow: hidden; text-align: center;
+  }
+  .photo-preview img { width: 100%; height: 100%; object-fit: cover; }
+  .modal .modal-hint { color: var(--muted); font-size: calc(13px * var(--scale)); min-height: 18px; margin: 6px 0 0; }
+  .tab-desc { color: var(--muted); font-size: calc(14px * var(--scale)); line-height: 1.6; margin: 0 0 16px; }
+  .storage-info { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
+  .storage-info p { color: var(--muted); font-size: calc(13px * var(--scale)); margin: 0; }
 </style>
 </head>
 <body>
@@ -279,6 +354,17 @@ async function shrinkImage(file, opts = {}) {
     dataUrl = canvas.toDataURL('image/jpeg', quality);
   }
   return dataUrl;
+}
+
+// ---- 메뉴 정렬 ----
+// order가 없는 메뉴는 맨 뒤에 둔다 (새로 만든 메뉴가 중간에 끼어들지 않게).
+function sortedMenus(menus) {
+  return [...menus].sort((a, b) => {
+    const ao = a.order ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.order ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return String(a.name).localeCompare(String(b.name), 'ko');
+  });
 }
 
 // ===== 3. 백엔드 어댑터 =====
@@ -439,6 +525,12 @@ const state = {
 
 const ROLE_LABEL = { order: '주문', barista: '제조', display: '호출', admin: '관리' };
 
+// ---- 설정 저장 ----
+// settings/app 문서 하나에 필드 단위로 merge 한다 (backend.set 규약).
+async function saveSettings(patch) {
+  await state.backend.set('settings', 'app', patch);
+}
+
 // ---- 글자 크기 (PRD 3.1.7) ----
 // 학생마다 편차가 커서 설정 깊숙이 넣지 않고 상단바에 상시 노출한다.
 function setFontScale(key) {
@@ -473,12 +565,406 @@ function renderRolePicker(el) {
   }
 }
 
+// ---- 관리 화면 (PRD 3.6) ----
+// 선생님이 코드를 열지 않고 메뉴·담당·설정을 바꾸는 유일한 경로다.
+
+// 학생이 실수로 들어가 메뉴를 지우는 일을 막는 잠금장치다.
+// 보안이 목적이 아니므로 세션 단위로만 기억한다.
+let adminUnlocked = sessionStorage.getItem('dallbodrae-admin') === 'ok';
+let pinInput = '';
+let adminTab = 'menu';   // 'menu' | 'staff' | 'settings'
+
+function renderPinGate(el) {
+  el.innerHTML = `
+    <div class="card pin-gate">
+      <h2>선생님 확인</h2>
+      <p>관리 화면에 들어가려면 비밀번호 4자리를 눌러 주세요.</p>
+      <div class="pin-dots" id="pin-dots"></div>
+      <div class="keypad" id="pin-pad"></div>
+    </div>`;
+
+  const dots = el.querySelector('#pin-dots');
+  const pad = el.querySelector('#pin-pad');
+
+  function drawDots() {
+    dots.innerHTML = '';
+    for (let i = 0; i < 4; i++) {
+      const d = document.createElement('span');
+      d.className = 'pin-dot' + (i < pinInput.length ? ' on' : '');
+      dots.appendChild(d);
+    }
+  }
+
+  function push(ch) {
+    if (pinInput.length >= 4) return;
+    pinInput += ch;
+    drawDots();
+    if (pinInput.length === 4) setTimeout(check, 150);
+  }
+
+  function check() {
+    const expected = String(state.settings.pin || CONFIG.defaults.pin);
+    if (pinInput === expected) {
+      sessionStorage.setItem('dallbodrae-admin', 'ok');
+      adminUnlocked = true;
+      pinInput = '';
+      render();
+    } else {
+      dots.classList.add('shake');
+      setTimeout(() => dots.classList.remove('shake'), 400);
+      pinInput = '';
+      drawDots();
+    }
+  }
+
+  for (const label of ['1','2','3','4','5','6','7','8','9','','0','지우기']) {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.className = 'key' + (label === '지우기' ? ' wide' : '');
+    if (label === '') { b.disabled = true; b.className = 'key blank'; }
+    else if (label === '지우기') b.onclick = () => { pinInput = pinInput.slice(0, -1); drawDots(); };
+    else b.onclick = () => push(label);
+    pad.appendChild(b);
+  }
+
+  pinInput = '';
+  drawDots();
+}
+
+// ---- 관리 화면 : 탭 껍데기 ----
+function renderAdminTabs(el) {
+  el.innerHTML = `
+    <div class="admin">
+      <div class="admin-tabs" role="tablist">
+        <button class="admin-tab" data-tab="menu">🍹 메뉴</button>
+        <button class="admin-tab" data-tab="staff">🧑‍🍳 담당</button>
+        <button class="admin-tab" data-tab="settings">⚙️ 설정</button>
+      </div>
+      <div class="admin-body" id="admin-body"></div>
+    </div>`;
+
+  for (const b of el.querySelectorAll('.admin-tab')) {
+    b.classList.toggle('on', b.dataset.tab === adminTab);
+    b.onclick = () => { adminTab = b.dataset.tab; renderAdminTabs(el); };
+  }
+
+  const body = el.querySelector('#admin-body');
+  if (adminTab === 'staff') renderStaffTab(body);
+  else if (adminTab === 'settings') renderSettingsTab(body);
+  else renderMenuTab(body);
+}
+
+// ---- 메뉴 탭 ----
+function renderMenuTab(body) {
+  const list = sortedMenus(state.menus);
+  body.innerHTML = `
+    <div class="menu-tab-head">
+      <button class="btn primary" id="btn-add-menu">＋ 메뉴 추가</button>
+    </div>
+    <div class="menu-list" id="menu-list"></div>`;
+  body.querySelector('#btn-add-menu').onclick = () => openMenuModal();
+
+  const listEl = body.querySelector('#menu-list');
+  if (list.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '등록된 메뉴가 없어요. 위 버튼으로 첫 메뉴를 추가해 보세요.';
+    listEl.appendChild(p);
+    return;
+  }
+
+  list.forEach((m, i) => {
+    const row = document.createElement('div');
+    row.className = 'menu-row';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'menu-thumb';
+    if (m.photo) {
+      const img = document.createElement('img');
+      img.src = m.photo;
+      img.alt = m.name || '메뉴 사진';
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = m.emoji || '☕';
+    }
+    row.appendChild(thumb);
+
+    const info = document.createElement('div');
+    info.className = 'menu-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'menu-name';
+    nameEl.textContent = m.name || '(이름 없음)';
+    if (m.soldOut) {
+      const badge = document.createElement('span');
+      badge.className = 'badge soldout';
+      badge.textContent = '품절';
+      nameEl.appendChild(badge);
+    }
+    const priceEl = document.createElement('div');
+    priceEl.className = 'menu-price';
+    priceEl.textContent = `${(Number(m.price) || 0).toLocaleString('ko-KR')}원`;
+    info.append(nameEl, priceEl);
+    row.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'menu-actions';
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'icon-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = '위로';
+    upBtn.disabled = i === 0;
+    upBtn.onclick = () => moveMenu(m.id, -1);
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'icon-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = '아래로';
+    downBtn.disabled = i === list.length - 1;
+    downBtn.onclick = () => moveMenu(m.id, 1);
+
+    const soldOutBtn = document.createElement('button');
+    soldOutBtn.className = 'btn ghost small';
+    soldOutBtn.textContent = m.soldOut ? '품절 해제' : '품절 처리';
+    soldOutBtn.onclick = () => state.backend.set('menus', m.id, { soldOut: !m.soldOut });
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn ghost small';
+    editBtn.textContent = '수정';
+    editBtn.onclick = () => openMenuModal(m);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn danger small';
+    delBtn.textContent = '삭제';
+    delBtn.onclick = async () => {
+      const ok = await confirmModal({
+        title: '메뉴를 삭제할까요?',
+        msg: `"${m.name || '이 메뉴'}"를 삭제하면 되돌릴 수 없어요.`,
+        okText: '삭제', okClass: 'danger', cancelText: '취소',
+      });
+      if (ok) {
+        await state.backend.remove('menus', m.id);
+        toast('메뉴를 삭제했어요.');
+      }
+    };
+
+    actions.append(upBtn, downBtn, soldOutBtn, editBtn, delBtn);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  });
+}
+
+// 목록 순서를 위/아래로 한 칸 옮기고 order를 1부터 다시 매긴다.
+// (order 값이 서로 겹치거나 비어 있어도 항상 정확한 순서로 정리된다)
+async function moveMenu(id, dir) {
+  const list = sortedMenus(state.menus);
+  const idx = list.findIndex((m) => m.id === id);
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= list.length) return;
+  [list[idx], list[j]] = [list[j], list[idx]];
+  await Promise.all(list.map((m, i) => state.backend.set('menus', m.id, { order: i + 1 })));
+}
+
+// ---- 메뉴 추가 · 수정 모달 ----
+// existing이 있으면 수정, 없으면 새 메뉴 추가.
+function openMenuModal(existing) {
+  const isEdit = !!existing;
+  let photo = existing?.photo || null;
+
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `
+    <div class="modal menu-modal">
+      <h3>${isEdit ? '메뉴 수정' : '메뉴 추가'}</h3>
+      <label class="field">
+        <span>이름</span>
+        <input type="text" id="mm-name" maxlength="20" placeholder="예: 아이스 아메리카노">
+      </label>
+      <label class="field">
+        <span>가격 (원)</span>
+        <input type="number" id="mm-price" min="0" step="100" placeholder="예: 1000">
+      </label>
+      <label class="field">
+        <span>이모지 (사진이 없을 때 표시)</span>
+        <input type="text" id="mm-emoji" maxlength="4" placeholder="☕">
+      </label>
+      <div class="field">
+        <span>사진 (선택)</span>
+        <div class="photo-pick">
+          <div class="photo-preview" id="mm-preview">${photo ? `<img src="${photo}" alt="미리보기">` : '사진 없음'}</div>
+          <input type="file" accept="image/*" id="mm-file" style="display:none">
+          <button type="button" class="btn ghost small" id="mm-pick-btn">사진 선택</button>
+          <button type="button" class="btn ghost small" id="mm-clear-btn" ${photo ? '' : 'disabled'}>사진 지우기</button>
+        </div>
+        <p class="modal-hint" id="mm-hint"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="mm-cancel">취소</button>
+        <button class="btn primary" id="mm-save">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+
+  const nameInput = back.querySelector('#mm-name');
+  const priceInput = back.querySelector('#mm-price');
+  const emojiInput = back.querySelector('#mm-emoji');
+  const preview = back.querySelector('#mm-preview');
+  const fileInput = back.querySelector('#mm-file');
+  const pickBtn = back.querySelector('#mm-pick-btn');
+  const clearBtn = back.querySelector('#mm-clear-btn');
+  const hint = back.querySelector('#mm-hint');
+  const saveBtn = back.querySelector('#mm-save');
+  const cancelBtn = back.querySelector('#mm-cancel');
+
+  nameInput.value = existing?.name || '';
+  priceInput.value = existing?.price ?? '';
+  emojiInput.value = existing?.emoji || '☕';
+
+  pickBtn.onclick = () => fileInput.click();
+  cancelBtn.onclick = () => back.remove();
+
+  function setPreview() {
+    preview.innerHTML = '';
+    if (photo) {
+      const img = document.createElement('img');
+      img.src = photo;
+      img.alt = '미리보기';
+      preview.appendChild(img);
+    } else {
+      preview.textContent = '사진 없음';
+    }
+    clearBtn.disabled = !photo;
+  }
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    pickBtn.disabled = true;
+    saveBtn.disabled = true;
+    hint.textContent = '사진을 줄이는 중...';
+    try {
+      photo = await shrinkImage(file);
+      setPreview();
+      hint.textContent = '';
+    } catch (err) {
+      hint.textContent = '사진을 불러오지 못했어요. 다른 사진으로 시도해 주세요.';
+    } finally {
+      pickBtn.disabled = false;
+      saveBtn.disabled = false;
+    }
+  };
+
+  clearBtn.onclick = () => { photo = null; setPreview(); };
+
+  saveBtn.onclick = async () => {
+    const name = nameInput.value.trim();
+    const price = Number(priceInput.value);
+    const emoji = emojiInput.value.trim() || '☕';
+    if (!name) { toast('메뉴 이름을 입력해 주세요.'); return; }
+    if (!Number.isFinite(price) || price < 0) { toast('가격을 올바르게 입력해 주세요.'); return; }
+    // shrinkImage는 3번 재시도해도 용량을 못 맞추면 큰 사진을 그대로 돌려준다.
+    // 그대로 저장하면 1MB 문서 제한에 걸려 아무 안내 없이 저장이 실패하므로 미리 막는다.
+    if (photo && dataUrlBytes(photo) > CONFIG.photoMaxBytes) {
+      toast('사진 용량이 너무 커요. 다른 사진으로 다시 올려 주세요.', { ms: 5000 });
+      return;
+    }
+    saveBtn.disabled = true;
+    try {
+      const patch = { name, price, emoji, photo };
+      if (isEdit) {
+        await state.backend.set('menus', existing.id, patch);
+      } else {
+        const maxOrder = state.menus.reduce((mx, m) => Math.max(mx, Number(m.order) || 0), 0);
+        await state.backend.add('menus', { ...patch, order: maxOrder + 1, visible: true, soldOut: false, recipe: [] });
+      }
+      back.remove();
+      toast(isEdit ? '메뉴를 저장했어요.' : '메뉴를 추가했어요.');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  };
+}
+
+// ---- 담당 탭 ----
+function renderStaffTab(body) {
+  const staff = state.settings.todayStaff || {};
+  body.innerHTML = `
+    <div class="staff-form">
+      <p class="tab-desc">오늘 카페를 운영하는 학생 이름을 입력하면 주문·제조 화면 상단에 표시돼요. 빈칸으로 두면 표시하지 않아요.</p>
+      <label class="field">
+        <span>오늘의 캐셔</span>
+        <input type="text" id="staff-cashier" placeholder="예: 김민준" maxlength="10">
+      </label>
+      <label class="field">
+        <span>오늘의 바리스타</span>
+        <input type="text" id="staff-barista" placeholder="예: 이서연" maxlength="10">
+      </label>
+      <button class="btn primary" id="staff-save">저장</button>
+    </div>`;
+  body.querySelector('#staff-cashier').value = staff.cashier || '';
+  body.querySelector('#staff-barista').value = staff.barista || '';
+  body.querySelector('#staff-save').onclick = async () => {
+    // 필드 단위 merge이므로 객체 전체를 새로 써야 한 값만 지워지는 일이 없다.
+    const cashier = body.querySelector('#staff-cashier').value.trim();
+    const barista = body.querySelector('#staff-barista').value.trim();
+    await saveSettings({ todayStaff: { cashier, barista } });
+    toast('오늘의 담당을 저장했어요.');
+  };
+}
+
+// ---- 설정 탭 ----
+// 재료·기록 탭, 주문번호 초기화, 테마·TTS·데이터 초기화는 이후 태스크에서 채운다.
+function renderSettingsTab(body) {
+  const s = state.settings;
+  body.innerHTML = `
+    <div class="settings-form">
+      <label class="field">
+        <span>관리자 비밀번호 (숫자 4자리)</span>
+        <input type="text" id="set-pin" maxlength="4" inputmode="numeric" placeholder="1234">
+      </label>
+      <label class="field">
+        <span>기본 글자 크기</span>
+        <select id="set-fontscale">
+          <option value="normal">보통</option>
+          <option value="large">크게</option>
+          <option value="xlarge">아주 크게</option>
+        </select>
+      </label>
+      <label class="field">
+        <span>제조 지연 강조 기준 (분)</span>
+        <input type="number" id="set-late" min="1" step="1">
+      </label>
+      <button class="btn primary" id="set-save">저장</button>
+      <div class="storage-info">
+        <p>저장 위치 — 모드: ${state.backend.mode === 'local' ? '로컬' : '클라우드'} / 경로: ${CONFIG.dataRoot}/${CONFIG.spaceId}</p>
+      </div>
+    </div>`;
+  body.querySelector('#set-pin').value = s.pin || CONFIG.defaults.pin;
+  body.querySelector('#set-fontscale').value = s.fontScale || CONFIG.defaults.fontScale;
+  body.querySelector('#set-late').value = s.lateMinutes ?? CONFIG.defaults.lateMinutes;
+  body.querySelector('#set-save').onclick = async () => {
+    const pin = body.querySelector('#set-pin').value.trim();
+    const fontScale = body.querySelector('#set-fontscale').value;
+    const lateMinutes = Number(body.querySelector('#set-late').value);
+    if (!/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력해 주세요.', { ms: 4000 }); return; }
+    if (!Number.isFinite(lateMinutes) || lateMinutes < 1) { toast('지연 기준은 1분 이상 숫자로 입력해 주세요.', { ms: 4000 }); return; }
+    await saveSettings({ pin, fontScale, lateMinutes });
+    toast('설정을 저장했어요.');
+  };
+}
+
 // ---- 라우팅 ----
 const VIEWS = {
   order:   { render: (el) => { el.textContent = '주문 화면 준비 중'; } },
   barista: { render: (el) => { el.textContent = '제조 화면 준비 중'; } },
   display: { render: (el) => { el.textContent = '호출 화면 준비 중'; } },
-  admin:   { render: (el) => { el.textContent = '관리 화면 준비 중'; } },
+  admin: {
+    render(el) {
+      if (!adminUnlocked) { renderPinGate(el); return; }
+      renderAdminTabs(el);
+    },
+  },
 };
 
 function render() {
@@ -491,6 +977,13 @@ function render() {
   }
   bar.hidden = state.role === 'display';   // 호출 화면은 손님이 보므로 상단바를 감춘다
   document.getElementById('role-tag').textContent = ROLE_LABEL[state.role];
+
+  // 오늘의 담당 학생 이름 (빈칸이면 아무것도 표시하지 않는다)
+  const staff = state.settings.todayStaff || {};
+  const who = state.role === 'order' ? staff.cashier : state.role === 'barista' ? staff.barista : '';
+  const label = state.role === 'order' ? '오늘의 캐셔' : '오늘의 바리스타';
+  document.getElementById('staff-tag').textContent = who ? `${label}: ${who}` : '';
+
   el.innerHTML = '';
   VIEWS[state.role].render(el);
 }
@@ -629,6 +1122,24 @@ test('로컬 백엔드가 필드를 원자적으로 증감한다', () => {
   be.subscribe('ingredients', (docs) => { seen = docs; });
   eq(seen[0].current, 700);
   localStorage.removeItem(key);
+});
+
+// ---- 메뉴 정렬 ----
+test('메뉴는 order 오름차순, 같으면 이름순으로 정렬된다', () => {
+  const list = [
+    { id: 'c', name: '핫초코', order: 2 },
+    { id: 'a', name: '아메리카노', order: 1 },
+    { id: 'b', name: '녹차라떼', order: 1 },
+  ];
+  eq(sortedMenus(list).map((m) => m.id), ['b', 'a', 'c']);
+});
+
+test('order가 없는 메뉴는 맨 뒤로 간다', () => {
+  const list = [
+    { id: 'x', name: '신메뉴' },
+    { id: 'a', name: '아메리카노', order: 1 },
+  ];
+  eq(sortedMenus(list).map((m) => m.id), ['a', 'x']);
 });
 
 // ===== 7. 시작 =====
