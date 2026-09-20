@@ -35,7 +35,10 @@
   input, textarea, select { user-select: text; -webkit-user-select: text; font: inherit; }
   button { font: inherit; cursor: pointer; border: none; touch-action: manipulation; }
   button:disabled { cursor: not-allowed; opacity: .4; }
-  main { flex: 1; padding: 16px; min-height: 0; }
+  /* main은 flex:1로 정해진 실제 높이를 갖지만 overflow 기본값(visible)이라
+     자식이 그보다 커지면 그림만 상자 밖으로 흘러 footer와 겹친다.
+     화면(주문·관리 등)이 늘어나도 항상 이 안에서만 스크롤되게 여기서 막는다. */
+  main { flex: 1; padding: 16px; min-height: 0; overflow-y: auto; }
   footer { text-align: center; padding: 10px; color: var(--muted); font-size: calc(13px * var(--scale)); }
   #selftest-result { padding: 20px; font-size: 15px; white-space: pre-wrap; line-height: 1.7; }
 
@@ -212,16 +215,26 @@
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
   .order-screen { display: flex; gap: 16px; height: 100%; }
   .order-menu { flex: 3; min-width: 0; height: 100%; overflow-y: auto; }
+  /* 주문하기는 항상 눌려야 하는 버튼이라 담은 내용이 길어져도 스크롤에 묻히면 안 된다.
+     그래서 패널 전체를 스크롤하는 대신, 카드 목록(.cart-list)만 안에서 스크롤하고
+     머리글·합계·버튼은 항상 제자리에 고정한다. min-height: 0은 flex 자식이
+     내용 크기 아래로 줄어들 수 있게 해 .cart-list의 overflow-y가 실제로 걸리게 한다. */
   .order-cart {
-    flex: 2; min-width: 260px; max-width: 380px; height: 100%;
+    flex: 2; min-width: 260px; max-width: 380px; height: 100%; min-height: 0;
     display: flex; flex-direction: column;
     background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
-    padding: 16px; overflow-y: auto;
+    padding: 16px;
   }
-  /* 좁은 화면(또는 아주 크게 글자 크기)에서 가로 스크롤 없이 위아래로 쌓는다 */
+  /* 좁은 화면(또는 아주 크게 글자 크기)에서 가로 스크롤 없이 위아래로 쌓는다.
+     order-screen의 높이를 main 박스에 그대로 고정해 두고(height: 100%, auto 아님),
+     메뉴 타일은 최대 비율까지만 차지한 뒤 그 안에서 스크롤하게 하고(flex-grow: 0),
+     장바구니가 남는 공간을 전부 가져가게 한다(flex: 1). 이렇게 하면 두 영역의
+     높이 합이 항상 order-screen(= main) 높이를 넘지 않는다 — 화면 폭이나 글자
+     크기가 바뀌어도 footer를 침범할 여지가 구조적으로 없다. */
   @media (max-width: 760px) {
-    .order-screen { flex-direction: column; height: auto; }
-    .order-menu, .order-cart { height: auto; max-width: none; }
+    .order-screen { flex-direction: column; height: 100%; }
+    .order-menu { flex: 0 1 auto; height: auto; max-height: 42%; max-width: none; overflow-y: auto; }
+    .order-cart { flex: 1 1 auto; min-height: 0; height: auto; max-width: none; }
   }
 
   .menu-grid {
@@ -252,7 +265,7 @@
 
   .cart-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
   .cart-head h2 { margin: 0; font-size: calc(18px * var(--scale)); color: var(--brand); flex: 1; }
-  .cart-list { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; }
+  .cart-list { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; overflow-y: auto; }
   .cart-card {
     display: flex; align-items: center; gap: 12px; padding: 10px;
     background: var(--bg); border: 2px solid var(--line); border-radius: 16px;
