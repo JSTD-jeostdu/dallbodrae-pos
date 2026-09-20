@@ -206,6 +206,88 @@
   .tab-desc { color: var(--muted); font-size: calc(14px * var(--scale)); line-height: 1.6; margin: 0 0 16px; }
   .storage-info { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
   .storage-info p { color: var(--muted); font-size: calc(13px * var(--scale)); margin: 0; }
+
+  /* ---- 주문 화면 (PRD 3.1) ----
+     AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
+     품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
+  .order-screen { display: flex; gap: 16px; height: 100%; }
+  .order-menu { flex: 3; min-width: 0; height: 100%; overflow-y: auto; }
+  .order-cart {
+    flex: 2; min-width: 260px; max-width: 380px; height: 100%;
+    display: flex; flex-direction: column;
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 16px; overflow-y: auto;
+  }
+  /* 좁은 화면(또는 아주 크게 글자 크기)에서 가로 스크롤 없이 위아래로 쌓는다 */
+  @media (max-width: 760px) {
+    .order-screen { flex-direction: column; height: auto; }
+    .order-menu, .order-cart { height: auto; max-width: none; }
+  }
+
+  .menu-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+    gap: 14px;
+  }
+  .tile {
+    position: relative; display: flex; flex-direction: column; gap: 8px;
+    min-width: 160px; min-height: 180px; padding: 10px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05); text-align: center;
+  }
+  .tile:active:not(:disabled) { transform: scale(.96); border-color: var(--brand); }
+  .tile-photo {
+    aspect-ratio: 1; border-radius: 14px; background: var(--bg);
+    display: flex; align-items: center; justify-content: center; overflow: hidden;
+  }
+  .tile-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .tile-photo .emoji { font-size: 52px; line-height: 1; }
+  .tile-name { font-size: calc(19px * var(--scale)); font-weight: 900; line-height: 1.25; overflow-wrap: break-word; }
+  /* 품절: 색만으로 구분하지 않는다 — 흐림 + 큰 ✕ 오버레이. 버튼은 disabled로 실제로 눌리지 않는다 */
+  .tile.soldout { opacity: .35; }
+  .tile-soldout {
+    position: absolute; inset: 0; border-radius: 18px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 64px; font-weight: 900; color: var(--danger);
+  }
+
+  .cart-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .cart-head h2 { margin: 0; font-size: calc(18px * var(--scale)); color: var(--brand); flex: 1; }
+  .cart-list { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; }
+  .cart-card {
+    display: flex; align-items: center; gap: 12px; padding: 10px;
+    background: var(--bg); border: 2px solid var(--line); border-radius: 16px;
+  }
+  .cart-thumb {
+    width: 56px; height: 56px; flex-shrink: 0; border-radius: 12px; background: var(--panel);
+    border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; font-size: 28px;
+  }
+  .cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .cart-info { flex: 1; min-width: 0; }
+  .cart-name { font-weight: 700; font-size: calc(15px * var(--scale)); margin-bottom: 6px; overflow-wrap: break-word; }
+  .qty-row { display: flex; align-items: center; gap: 10px; }
+  .qty-btn {
+    width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--panel);
+    border: 2px solid var(--line); font-size: 18px; font-weight: 900; color: var(--brand-dark);
+  }
+  .qty-num { min-width: 24px; text-align: center; font-weight: 900; font-size: calc(16px * var(--scale)); }
+  .cart-del {
+    width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--panel);
+    border: 2px solid var(--line); color: var(--danger); font-size: 16px; font-weight: 900;
+  }
+  .cart-total { text-align: right; font-weight: 900; font-size: calc(16px * var(--scale)); margin: 10px 0; }
+  .btn.big { min-height: 60px; font-size: calc(18px * var(--scale)); width: 100%; margin-top: 10px; }
+
+  /* ---- 주문 완료 : 번호 표시 ----
+     번호 글자 크기는 상단바 글자 크기 설정과 독립적으로 화면 폭에 맞춰 정한다 —
+     이미 화면에서 가장 큰 요소라 --scale까지 곱하면 좁은 화면에서 가로로 넘칠 수 있다. */
+  .order-no-screen {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    height: 100%; min-height: 60vh; gap: 12px; text-align: center;
+  }
+  .order-no-label { color: var(--muted); font-size: calc(20px * var(--scale)); margin: 0; }
+  .order-no-big { font-size: clamp(72px, 25vw, 200px); font-weight: 900; color: var(--brand); margin: 0; line-height: 1; }
+  .order-no-sub { color: var(--muted); font-size: calc(18px * var(--scale)); margin: 0; }
 </style>
 </head>
 <body>
@@ -366,6 +448,30 @@ function sortedMenus(menus) {
     if (ao !== bo) return ao - bo;
     return String(a.name).localeCompare(String(b.name), 'ko');
   });
+}
+
+// ---- 장바구니 ----
+// 화면에 사진을 다시 조회하지 않아도 되게, 담는 시점의 표시 정보를 함께 복사해 둔다.
+function cartAdd(cart, menu) {
+  const found = cart.find((c) => c.menuId === menu.id);
+  if (found) return cart.map((c) => (c.menuId === menu.id ? { ...c, qty: c.qty + 1 } : c));
+  return [...cart, {
+    menuId: menu.id,
+    name: menu.name,
+    photo: menu.photo || null,
+    emoji: menu.emoji || '☕',
+    price: menu.price || 0,
+    qty: 1,
+  }];
+}
+
+function cartSetQty(cart, menuId, qty) {
+  if (qty <= 0) return cart.filter((c) => c.menuId !== menuId);
+  return cart.map((c) => (c.menuId === menuId ? { ...c, qty } : c));
+}
+
+function cartTotal(cart) {
+  return cart.reduce((sum, c) => sum + (c.price || 0) * c.qty, 0);
 }
 
 // ===== 3. 백엔드 어댑터 =====
@@ -963,9 +1069,290 @@ function renderSettingsTab(body) {
   };
 }
 
+// ---- 주문 화면 (PRD 3.1) ----
+// 글을 못 읽는 학생도 손님을 맞을 수 있게, 사진과 글자를 항상 함께 보여준다(AAC 원칙).
+// 아래 상태는 render()가 데이터 변경마다 다시 불려도 사라지면 안 되므로 모듈 전역에 둔다.
+let cart = [];              // [{ menuId, name, photo, emoji, price, qty }]
+let orderNoShown = null;    // 방금 발번한 번호. 있으면 큰 번호 화면을 보여준다.
+let orderNoTimer = null;    // 번호 화면 자동 복귀 타이머 (재렌더마다 새로 잡지 않는다)
+let submitting = false;     // 발번 중 중복 탭 방지
+
+// 메뉴 타일 — 사진(또는 이모지) + 이름이 한 버튼 안에 함께 있다.
+// 품절이면 disabled로 두어 "누를 수 없는 버튼"을 실제로 누를 수 없게 만든다.
+function buildMenuTile(menu) {
+  const tile = document.createElement('button');
+  tile.type = 'button';
+  tile.className = 'tile' + (menu.soldOut ? ' soldout' : '');
+  tile.dataset.menuId = menu.id;
+  tile.disabled = !!menu.soldOut;
+
+  const photoBox = document.createElement('div');
+  photoBox.className = 'tile-photo';
+  if (menu.photo) {
+    const img = document.createElement('img');
+    img.src = menu.photo;
+    img.alt = '';
+    photoBox.appendChild(img);
+  } else {
+    const span = document.createElement('span');
+    span.className = 'emoji';
+    span.textContent = menu.emoji || '☕';
+    photoBox.appendChild(span);
+  }
+  tile.appendChild(photoBox);
+
+  const nameEl = document.createElement('div');
+  nameEl.className = 'tile-name';
+  nameEl.textContent = menu.name || '';
+  tile.appendChild(nameEl);
+
+  // 품절: 색으로만 구분하지 않는다 — 흐림(.soldout) + 화면을 덮는 큰 ✕
+  if (menu.soldOut) {
+    const x = document.createElement('div');
+    x.className = 'tile-soldout';
+    x.setAttribute('aria-hidden', 'true');
+    x.textContent = '✕';
+    tile.appendChild(x);
+  } else {
+    tile.onclick = () => {
+      cart = cartAdd(cart, menu);
+      navigator.vibrate?.(30);   // 탭에 대한 즉각적인 다감각 피드백
+      render();
+    };
+  }
+  return tile;
+}
+
+// 담은 내용 카드 — 글을 못 읽어도 사진만 보고 무엇을 담았는지 알 수 있게 한다.
+function buildCartCard(item) {
+  const card = document.createElement('div');
+  card.className = 'cart-card';
+
+  const thumb = document.createElement('div');
+  thumb.className = 'cart-thumb';
+  if (item.photo) {
+    const img = document.createElement('img');
+    img.src = item.photo;
+    img.alt = '';
+    thumb.appendChild(img);
+  } else {
+    const span = document.createElement('span');
+    span.className = 'emoji';
+    span.textContent = item.emoji || '☕';
+    thumb.appendChild(span);
+  }
+  card.appendChild(thumb);
+
+  const info = document.createElement('div');
+  info.className = 'cart-info';
+  const nameEl = document.createElement('div');
+  nameEl.className = 'cart-name';
+  nameEl.textContent = item.name || '';
+  info.appendChild(nameEl);
+
+  const qtyRow = document.createElement('div');
+  qtyRow.className = 'qty-row';
+
+  const minusBtn = document.createElement('button');
+  minusBtn.type = 'button';
+  minusBtn.className = 'qty-btn';
+  minusBtn.textContent = '－';
+  minusBtn.setAttribute('aria-label', `${item.name} 수량 줄이기`);
+  minusBtn.onclick = () => {
+    cart = cartSetQty(cart, item.menuId, item.qty - 1);
+    navigator.vibrate?.(30);
+    render();
+  };
+
+  const qtyNum = document.createElement('span');
+  qtyNum.className = 'qty-num';
+  qtyNum.textContent = String(item.qty);
+
+  const plusBtn = document.createElement('button');
+  plusBtn.type = 'button';
+  plusBtn.className = 'qty-btn';
+  plusBtn.textContent = '＋';
+  plusBtn.setAttribute('aria-label', `${item.name} 수량 늘리기`);
+  plusBtn.onclick = () => {
+    cart = cartSetQty(cart, item.menuId, item.qty + 1);
+    navigator.vibrate?.(30);
+    render();
+  };
+
+  qtyRow.append(minusBtn, qtyNum, plusBtn);
+  info.appendChild(qtyRow);
+  card.appendChild(info);
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'cart-del';
+  delBtn.textContent = '✕';
+  delBtn.setAttribute('aria-label', `${item.name} 빼기`);
+  delBtn.onclick = () => {
+    cart = cartSetQty(cart, item.menuId, 0);
+    navigator.vibrate?.(30);
+    render();
+  };
+  card.appendChild(delBtn);
+
+  return card;
+}
+
+// 주문 화면 본체 — 왼쪽 메뉴 타일 / 오른쪽 담은 내용.
+function renderOrderCartScreen(el) {
+  const wrap = document.createElement('div');
+  wrap.className = 'order-screen';
+
+  // ---- 왼쪽: 메뉴 타일 ----
+  const menuPane = document.createElement('div');
+  menuPane.className = 'order-menu';
+  const grid = document.createElement('div');
+  grid.className = 'menu-grid';
+  const menus = sortedMenus(state.menus).filter((m) => m.visible !== false);
+  if (menus.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'empty-hint';
+    hint.textContent = '등록된 메뉴가 없어요. 선생님께 메뉴 등록을 부탁해 주세요.';
+    grid.appendChild(hint);
+  } else {
+    for (const m of menus) grid.appendChild(buildMenuTile(m));
+  }
+  menuPane.appendChild(grid);
+
+  // ---- 오른쪽: 담은 내용 ----
+  const cartPane = document.createElement('div');
+  cartPane.className = 'order-cart';
+
+  const head = document.createElement('div');
+  head.className = 'cart-head';
+  const h2 = document.createElement('h2');
+  h2.textContent = '담은 주문';
+  head.appendChild(h2);
+  if (cart.length > 0) {
+    const clearBtn = document.createElement('button');
+    clearBtn.type = 'button';
+    clearBtn.className = 'btn ghost small';
+    clearBtn.textContent = '전체 비우기';
+    clearBtn.onclick = async () => {
+      const ok = await confirmModal({
+        title: '모두 뺄까요?',
+        msg: '담은 내용을 모두 비웁니다.',
+        okText: '비우기', okClass: 'danger', cancelText: '취소',
+      });
+      if (ok) { cart = []; render(); }
+    };
+    head.appendChild(clearBtn);
+  }
+  cartPane.appendChild(head);
+
+  const list = document.createElement('div');
+  list.className = 'cart-list';
+  if (cart.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'empty-hint';
+    hint.textContent = '메뉴를 눌러 담아 주세요.';
+    list.appendChild(hint);
+  } else {
+    for (const item of cart) list.appendChild(buildCartCard(item));
+  }
+  cartPane.appendChild(list);
+
+  // 금액 표시(off): 이번 버전에서는 가격·합계를 DOM에 아예 만들지 않는다.
+  if (state.settings.priceMode !== 'off' && cart.length > 0) {
+    const totalEl = document.createElement('div');
+    totalEl.className = 'cart-total';
+    totalEl.textContent = `합계 ${cartTotal(cart).toLocaleString('ko-KR')}원`;
+    cartPane.appendChild(totalEl);
+  }
+
+  const submitBtn = document.createElement('button');
+  submitBtn.type = 'button';
+  submitBtn.className = 'btn primary big';
+  submitBtn.textContent = '주문하기';
+  submitBtn.disabled = cart.length === 0 || submitting;
+  submitBtn.onclick = () => submitOrder();
+  cartPane.appendChild(submitBtn);
+
+  wrap.append(menuPane, cartPane);
+  el.appendChild(wrap);
+}
+
+// 주문 완료 — 화면을 덮는 큰 번호. 3초 뒤 자동으로 빈 주문 화면으로 돌아간다.
+function renderOrderNoScreen(el, orderNo) {
+  const wrap = document.createElement('div');
+  wrap.className = 'order-no-screen';
+  const label = document.createElement('p');
+  label.className = 'order-no-label';
+  label.textContent = '주문번호';
+  const big = document.createElement('p');
+  big.className = 'order-no-big';
+  big.textContent = String(orderNo);
+  const sub = document.createElement('p');
+  sub.className = 'order-no-sub';
+  sub.textContent = '번호를 불러드릴게요!';
+  wrap.append(label, big, sub);
+  el.appendChild(wrap);
+}
+
+function renderOrderView(el) {
+  if (orderNoShown != null) { renderOrderNoScreen(el, orderNoShown); return; }
+  renderOrderCartScreen(el);
+}
+
+// 큰 번호 표시 + 음성 안내. 3초 뒤 자동 복귀 — 타이머는 호출할 때 한 번만 잡는다
+// (render()가 그 사이 다시 불려도 번호 화면을 다시 그릴 뿐, 타이머를 새로 잡지 않는다).
+function showOrderNumber(orderNo) {
+  orderNoShown = orderNo;
+  if (orderNoTimer) clearTimeout(orderNoTimer);
+  render();
+  try {
+    const utter = new SpeechSynthesisUtterance(`${orderNo}번이에요`);
+    utter.lang = 'ko-KR';
+    speechSynthesis.speak(utter);
+  } catch {
+    // 접속 직후에는 음성이 막히는 브라우저가 있다 — 조용히 넘어간다.
+  }
+  orderNoTimer = setTimeout(() => {
+    orderNoShown = null;
+    orderNoTimer = null;
+    render();
+  }, 3000);
+}
+
+// 주문 저장. 반환하는 orderId는 Task 13(재료 차감 기록)에서 stockLogs.orderId로 쓴다.
+async function submitOrder() {
+  if (cart.length === 0 || submitting) return;
+  submitting = true;
+  render();   // 버튼을 바로 비활성화해 중복 탭을 막는다
+  const businessDate = businessDateOf();
+  try {
+    const orderNo = await state.backend.issueOrderNo(businessDate);   // 트랜잭션 — 실패할 수 있다
+    const staff = state.settings.todayStaff || {};
+    const orderId = await state.backend.add('orders', {
+      orderNo,
+      businessDate,
+      items: cart,
+      total: cartTotal(cart),
+      status: 'waiting',
+      cashier: staff.cashier || '',   // 기록만 해 둔다 (이번 버전에서는 집계하지 않는다)
+      barista: staff.barista || '',
+      createdAt: Date.now(),
+    });
+    submitting = false;
+    cart = [];   // 주문이 안전하게 저장된 뒤에만 장바구니를 비운다
+    showOrderNumber(orderNo);
+    return orderId;
+  } catch (err) {
+    // 발번이 실패하면 장바구니를 그대로 두어 다시 시도할 수 있게 한다.
+    submitting = false;
+    render();
+    toast('주문 번호를 받아오지 못했어요. 다시 눌러 주세요.', { ms: 5000 });
+  }
+}
+
 // ---- 라우팅 ----
 const VIEWS = {
-  order:   { render: (el) => { el.textContent = '주문 화면 준비 중'; } },
+  order:   { render: renderOrderView },
   barista: { render: (el) => { el.textContent = '제조 화면 준비 중'; } },
   display: { render: (el) => { el.textContent = '호출 화면 준비 중'; } },
   admin: {
@@ -1149,6 +1536,38 @@ test('order가 없는 메뉴는 맨 뒤로 간다', () => {
     { id: 'a', name: '아메리카노', order: 1 },
   ];
   eq(sortedMenus(list).map((m) => m.id), ['a', 'x']);
+});
+
+// ---- 장바구니 ----
+test('같은 메뉴를 담으면 수량이 늘어난다', () => {
+  const m = { id: 'a', name: '아메리카노', price: 1000, emoji: '☕', photo: null };
+  let cart = cartAdd([], m);
+  cart = cartAdd(cart, m);
+  eq(cart.length, 1);
+  eq(cart[0].qty, 2);
+});
+
+test('담는 순서가 유지된다', () => {
+  const a = { id: 'a', name: '아메리카노', price: 1000 };
+  const b = { id: 'b', name: '핫초코', price: 1500 };
+  let cart = cartAdd(cartAdd([], a), b);
+  cart = cartAdd(cart, a);
+  eq(cart.map((c) => c.menuId), ['a', 'b'], '이미 담긴 메뉴는 제자리에 머문다');
+});
+
+test('수량을 0으로 만들면 목록에서 빠진다', () => {
+  const a = { id: 'a', name: '아메리카노', price: 1000 };
+  const cart = cartSetQty(cartAdd([], a), 'a', 0);
+  eq(cart.length, 0);
+});
+
+test('합계를 계산한다', () => {
+  const cart = [
+    { menuId: 'a', price: 1000, qty: 2 },
+    { menuId: 'b', price: 1500, qty: 1 },
+  ];
+  eq(cartTotal(cart), 3500);
+  eq(cartTotal([]), 0);
 });
 
 // ===== 7. 시작 =====
