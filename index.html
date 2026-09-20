@@ -1707,13 +1707,40 @@ function updateCardTiming(card, order, now, lateMinutes) {
   card.querySelector('.elapsed-text').textContent = `${mins}분 경과`;
 }
 
+// 받침 유무에 따라 "을/를"을 골라 붙인다. 메뉴 이름은 관리자가 자유롭게 짓기 때문에
+// 매번 맞는 조사를 붙이려면 이렇게 계산해야 한다(예: "아메리카노를", "핫초코를", "빵을").
+function withObjectParticle(word) {
+  const last = String(word || '').trim().slice(-1);
+  const code = last.charCodeAt(0);
+  const isHangulSyllable = code >= 0xAC00 && code <= 0xD7A3;
+  const hasBatchim = isHangulSyllable && (code - 0xAC00) % 28 !== 0;
+  return `${word}${hasBatchim ? '을' : '를'}`;
+}
+
 // 재료가 떨어진 걸 가장 먼저 아는 사람이 바리스타이므로, 관리 화면까지 가지 않고
-// 여기서 바로 품절 처리할 수 있게 한다. set은 필드 단위로 merge하므로
-// soldOut 한 필드만 보낸다(메뉴 객체 전체나 배열을 잘못 보내면 다른 필드가 날아간다).
+// 여기서 바로 품절 처리할 수 있게 한다.
+// 이 버튼은 이 주문 한 줄이 아니라 카페 전체 메뉴에 영향을 준다 — 주문 화면 타일이
+// 바로 흐려질 만큼 파급이 크므로, 완료(markReady)와 똑같이 되돌리기 토스트를 보여준다
+// (접근성 원칙 4: 모든 동작은 되돌릴 수 있다 / 원칙 6: 즉각적인 다감각 피드백).
+// set은 필드 단위로 merge하므로 soldOut 한 필드만 보낸다
+// (메뉴 객체 전체나 배열을 잘못 보내면 recipe 등 다른 필드가 날아간다).
 function toggleMenuSoldOut(menuId) {
   const menu = state.menus.find((m) => m.id === menuId);
   if (!menu) return;
-  state.backend.set('menus', menuId, { soldOut: !menu.soldOut });
+  const was = !!menu.soldOut;
+  const willBeSoldOut = !was;
+  const name = menu.name || '이 메뉴';
+  state.backend.set('menus', menuId, { soldOut: willBeSoldOut });
+  toast(
+    willBeSoldOut
+      ? `${withObjectParticle(name)} 오늘 품절로 바꿨어요`
+      : `${withObjectParticle(name)} 다시 팔 수 있어요`,
+    {
+      actionText: '되돌리기',
+      ms: CONFIG.undoSeconds * 1000,
+      onAction: () => state.backend.set('menus', menuId, { soldOut: was }),
+    },
+  );
 }
 
 // 주문 한 줄(메뉴 하나) — 사진(또는 이모지) + 이름 + 수량을 항상 함께 보여준다(AAC 원칙).
@@ -1750,8 +1777,10 @@ function buildOrderItemRow(item) {
   const soldOutBtn = document.createElement('button');
   soldOutBtn.type = 'button';
   soldOutBtn.className = 'oi-soldout' + (menu?.soldOut ? ' on' : '');
-  soldOutBtn.textContent = menu?.soldOut ? '품절 해제' : '품절';
-  soldOutBtn.setAttribute('aria-label', `${item.name} ${menu?.soldOut ? '품절 해제' : '품절 처리'}`);
+  // 이 버튼은 이 주문 한 줄이 아니라 메뉴 전체에 적용된다 — 글자 그대로 보이는
+  // 이름에도 "메뉴"라는 범위를 넣어, aria-label을 못 읽는 학생도 뜻을 알 수 있게 한다.
+  soldOutBtn.textContent = menu?.soldOut ? '다시 팔기' : '메뉴 품절';
+  soldOutBtn.setAttribute('aria-label', `${item.name} 메뉴를 ${menu?.soldOut ? '다시 팔 수 있게 하기' : '오늘 품절로 바꾸기'}`);
   soldOutBtn.onclick = () => toggleMenuSoldOut(item.menuId);
   row.appendChild(soldOutBtn);
 
