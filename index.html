@@ -719,6 +719,32 @@ function reclampOrderScreen() {
   if (cartCue) attachScrollCue(cartScroll, cartCue, cartTruncated);
 }
 
+// ---- 주문 화면 크기 재계산: 창 크기 변화 대응 ----
+// 태블릿이 회전하거나, 화면 키보드가 열리고 닫히거나, 모바일 브라우저 주소창이
+// 스크롤에 따라 나타났다 사라지는 것만으로도 뷰포트 높이가 바뀐다 — 버튼을
+// 누르거나 글자 크기를 바꾸는 것 같은 "동작" 없이도 생기는 일이라, 여기서도
+// reclampOrderScreen()을 불러야 예전 크기 기준 max-height가 남아 줄을 자르지 않는다.
+// main(#app)은 역할이 바뀌거나 화면이 재렌더돼도 절대 다시 만들어지지 않는
+// 고정된 엘리먼트라, 옵저버를 한 번만 만들어 여기 달아 두면 재렌더마다 다시
+// 쌓일 일이 없다(관리 화면 등 주문 화면이 아닐 때는 reclampOrderScreen이 그냥
+// 아무 것도 하지 않고 돌아간다).
+let mainResizeObserver = null;
+let resizeRaf = null;
+function watchOrderScreenResize() {
+  if (mainResizeObserver || typeof ResizeObserver === 'undefined') return;
+  const main = document.getElementById('app');
+  mainResizeObserver = new ResizeObserver(() => {
+    // 창을 드래그로 빠르게 늘렸다 줄였다 해도 매 프레임 수십 번씩 다시 재지
+    // 않도록, 한 애니메이션 프레임에 한 번만 재계산하게 묶는다.
+    if (resizeRaf) cancelAnimationFrame(resizeRaf);
+    resizeRaf = requestAnimationFrame(() => {
+      resizeRaf = null;
+      reclampOrderScreen();
+    });
+  });
+  mainResizeObserver.observe(main);
+}
+
 // 상단바 가/가/가 버튼 전용 — 이 기기만의 선택으로 기억한다(localStorage).
 // 학생이 자기 앞 태블릿만 조절하는 것이므로 다른 기기에 영향을 주면 안 된다.
 function setFontScale(key) {
@@ -1332,6 +1358,7 @@ function layoutOrderPanels(menuPane, menuScroll, menuItems, cartPane, cartList, 
   // (예: 글자 크기가 커져 옆 패널이 자라난 뒤라면, 예전 값 그대로는 "얼마나
   // 남았는지"를 알 수 없다) — 늘 지우고 나서 새로 잰다.
   menuPane.style.maxHeight = '';
+  menuPane.style.minHeight = '';
   menuScroll.style.maxHeight = '';
   cartPane.style.maxHeight = '';
   cartScroll.style.maxHeight = '';
@@ -1353,6 +1380,15 @@ function layoutOrderPanels(menuPane, menuScroll, menuItems, cartPane, cartList, 
   const oneRow = menuRows[0].bottom;
   const menuFloor = oneRow + cueReserve;   // .order-menu 틀 전체 기준 최소 높이(한 줄 + 화살표 자리)
 
+  // min-height를 명시적으로 걸어 둔다. .order-menu에는 overflow: hidden이 있는데,
+  // 이는 (스크롤/클립 컨테이너에게 자동 최소 높이를 0으로 주는 flexbox 규칙 때문에)
+  // 화면이 아주 좁고 낮을 때 order-screen이 menuFloor보다 작으면 flex가 이 패널을
+  // 한 줄 밑으로 짜부라뜨릴 수 있다는 뜻이다. 명시적 min-height는 그 자동 규칙을
+  // 덮어써서 무조건 한 줄은 지키게 하고, 대신 장바구니(overflow-y: auto라 자동
+  // 최소 높이가 0)가 먼저 줄어들게 한다 — 그래도 공간이 부족하면 main의
+  // overflow-y: auto(Fix round 1)가 마지막 안전망으로 전체를 스크롤시킨다.
+  menuPane.style.minHeight = menuFloor + 'px';
+
   const gap = parseFloat(getComputedStyle(screen).rowGap) || 0;
   const screenHeight = screen.clientHeight;
 
@@ -1361,7 +1397,24 @@ function layoutOrderPanels(menuPane, menuScroll, menuItems, cartPane, cartList, 
   // 컨테이닝 블록에 따라 "50%" 문자열 그대로 돌아올 수 있어 parseFloat가
   // 50%를 50px로 잘못 읽는 함정이 있다). 아래 계산이 이미 "메뉴 한 줄은 반드시
   // 남긴다"는 조건으로 상한을 정하므로 그 자체로 안전하다.
-  const cartCap = Math.max(0, screenHeight - gap - menuFloor);
+  //
+  // 다만 상한을 0까지 내려버리면(화면이 아주 좁고 낮아 메뉴 한 줄만으로도 이미
+  // 공간이 모자란 극단적인 경우) 장바구니 머리글·주문하기 버튼처럼 스스로 줄어들
+  // 수 없는 요소들이 이상하게 찌그러진 채 렌더링될 수 있다. 그래서 장바구니가
+  // "카드 목록 없이 머리글 + 버튼만 있을 때"의 자연스러운 최소 높이 아래로는
+  // 내려가지 않게 한다 — 카드 목록(.cart-scroll)은 0까지 접혀도 되지만(overflow:
+  // hidden으로 조용히 가려짐), 버튼은 항상 제 모양을 유지해야 한다. 그래도 전체가
+  // 화면에 못 들어가면 main의 overflow-y: auto가 나머지를 스크롤로 받아 준다.
+  // 머리글 높이 + 버튼 높이 + 각각의 margin + padding을 일일이 더하면 CSS가
+  // 바뀔 때마다 어긋나기 쉽다(실제로 margin을 하나 빠뜨려 8px 차이가 났었다).
+  // 대신 카드 목록을 잠깐 display: none으로 빼고 실제 렌더된 높이를 그대로
+  // 재는 쪽이 항상 정확하다 — 재고 나서 바로 되돌린다.
+  const cartListDisplay = cartList.style.display;
+  cartList.style.display = 'none';
+  const cartFloor = cartPane.getBoundingClientRect().height;
+  cartList.style.display = cartListDisplay;
+
+  const cartCap = Math.max(cartFloor, screenHeight - gap - menuFloor);
   cartPane.style.maxHeight = cartCap + 'px';
 
   const cartTruncated = cartItems.length ? clampToRows(cartScroll, measureRows(cartScroll, cartItems)) : false;
@@ -1399,6 +1452,8 @@ function attachScrollCue(pane, cue, truncated) {
 
 // 주문 화면 본체 — 왼쪽 메뉴 타일 / 오른쪽 담은 내용.
 function renderOrderCartScreen(el) {
+  watchOrderScreenResize();   // 최초 1회만 실제로 옵저버를 만든다(내부에서 중복 방지)
+
   const wrap = document.createElement('div');
   wrap.className = 'order-screen';
 
