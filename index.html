@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>달보드레</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;900&display=swap" rel="stylesheet">
+<style>
+  /* 달보드레 — '달콤하고 부드럽다'는 이름에 맞춘 부드러운 색감 */
+  :root {
+    --bg: #fdf7f2;
+    --panel: #ffffff;
+    --ink: #2a2320;
+    --muted: #7a6b60;
+    --line: #e8dcd2;
+    --brand: #b5651d;
+    --brand-dark: #8c4a12;
+    --ok: #2f7d4f;
+    --warn: #d98a00;
+    --danger: #c0392b;
+    --radius: 18px;
+    /* 글자 크기 3단계 — Task 5에서 실제로 전환한다 */
+    --scale: 1;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    font-size: calc(16px * var(--scale));
+    display: flex; flex-direction: column; min-height: 100vh;
+    user-select: none; -webkit-user-select: none;
+  }
+  input, textarea, select { user-select: text; -webkit-user-select: text; font: inherit; }
+  button { font: inherit; cursor: pointer; border: none; touch-action: manipulation; }
+  button:disabled { cursor: not-allowed; opacity: .4; }
+  main { flex: 1; padding: 16px; min-height: 0; }
+  footer { text-align: center; padding: 10px; color: var(--muted); font-size: calc(13px * var(--scale)); }
+  #selftest-result { padding: 20px; font-size: 15px; white-space: pre-wrap; line-height: 1.7; }
+</style>
+</head>
+<body>
+<main id="app"></main>
+<footer>Made by 정우쌤</footer>
+
+<script type="module">
+// ===== 1. 설정 (CONFIG) =====
+// 여기 값만 바꾸면 다른 학급·다른 학년도에서도 그대로 쓸 수 있다.
+const CONFIG = {
+  // Firebase 콘솔 > 프로젝트 설정 > 내 앱 > (웹 앱 추가) 의 값을 붙여넣는다.
+  // 비워두면 로컬 모드로 동작한다 (같은 기기의 탭끼리만 동기화 · 연습용).
+  firebase: {
+    apiKey: '',
+    authDomain: '',
+    projectId: '',
+    storageBucket: '',
+    messagingSenderId: '',
+    appId: '',
+  },
+  firebaseVersion: '12.19.0',
+  appName: 'dallbodrae-pos',     // Firebase 인스턴스 이름 — 다른 앱과 캐시가 섞이지 않게
+  databaseId: '',                // 비우면 (default) 데이터베이스
+  dataRoot: 'dallbodrae_pos',    // 최상위 컬렉션 — 기존 앱이 쓰지 않는 이름이어야 한다
+  spaceId: 'cafe-2026',          // 운영 단위. 새로 시작하고 싶으면 이 값만 바꾼다
+  cafeName: '달보드레',
+
+  defaults: {
+    priceMode: 'off',            // 'off' | 'show' | 'practice'
+    fontScale: 'normal',         // 'normal' | 'large' | 'xlarge'
+    ttsText: '{번호}번 손님, 음료 나왔습니다.',
+    ttsRate: 1.0,
+    ttsVolume: 1.0,
+    chime: true,
+    lateMinutes: 5,              // 제조 지연 강조 기준 (분)
+    pin: '1234',                 // 관리 화면 PIN (설정에서 변경 가능)
+  },
+
+  photoMaxPx: 400,               // 사진 리사이즈 한 변 (px)
+  photoQuality: 0.7,             // JPEG 품질
+  photoMaxBytes: 300 * 1024,     // 이보다 크면 품질을 낮춰 재시도
+  undoSeconds: 6,                // "완료" 되돌리기 가능 시간 (초)
+  recentOrderCount: 12,          // 주문 화면 최근 주문 표시 개수
+  displayRecentCount: 4,         // 호출 화면에 함께 보여줄 직전 번호 개수
+
+  localStorageKey: 'dallbodrae-local-db',
+  roleKey: 'dallbodrae-role',
+  fontScaleKey: 'dallbodrae-font-scale',
+};
+
+const FONT_SCALES = { normal: 1, large: 1.25, xlarge: 1.55 };
+
+// ===== 2. 순수 로직 =====
+
+// ===== 3. 백엔드 어댑터 =====
+
+// ===== 4. 공통 UI 부품 =====
+
+// ===== 5. 화면 =====
+
+// ===== 6. 자가 테스트 =====
+// DOM·네트워크를 건드리지 않는 순수 로직만 여기서 검증한다.
+const TESTS = [];
+function test(name, fn) { TESTS.push({ name, fn }); }
+
+// 깊은 비교 단언. 다르면 Error를 던진다.
+function eq(actual, expected, msg) {
+  const a = JSON.stringify(actual), e = JSON.stringify(expected);
+  if (a !== e) throw new Error(`${msg ? msg + ' — ' : ''}기대: ${e} / 실제: ${a}`);
+}
+
+function runSelfTest() {
+  const fails = [];
+  let pass = 0;
+  for (const t of TESTS) {
+    try { t.fn(); pass++; }
+    catch (err) { fails.push(`✗ ${t.name}\n    ${err.message}`); }
+  }
+  const head = fails.length === 0 ? `PASS ${pass}/${TESTS.length}` : `FAIL ${pass}/${TESTS.length}`;
+  document.body.innerHTML =
+    `<pre id="selftest-result">${head}\n\n${fails.join('\n\n') || '모든 테스트를 통과했습니다.'}</pre>`;
+}
+
+test('테스트 러너가 불일치를 잡아낸다', () => {
+  let caught = false;
+  try { eq(1, 2); } catch (err) { caught = true; }
+  if (!caught) throw new Error('eq가 불일치를 통과시켰습니다');
+});
+
+test('CONFIG에 필수 값이 있다', () => {
+  eq(CONFIG.dataRoot, 'dallbodrae_pos');
+  eq(typeof CONFIG.spaceId, 'string');
+  eq(CONFIG.appName, 'dallbodrae-pos');
+});
+
+// ===== 7. 시작 =====
+if (new URLSearchParams(location.search).has('selftest')) {
+  runSelfTest();
+} else {
+  document.getElementById('app').textContent = '준비 중';
+}
+</script>
+</body>
+</html>
