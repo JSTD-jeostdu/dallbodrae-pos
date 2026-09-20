@@ -332,6 +332,44 @@
   .order-no-label { color: var(--muted); font-size: calc(20px * var(--scale)); margin: 0; }
   .order-no-big { font-size: clamp(72px, 25vw, 200px); font-weight: 900; color: var(--brand); margin: 0; line-height: 1; }
   .order-no-sub { color: var(--muted); font-size: calc(18px * var(--scale)); margin: 0; }
+
+  /* ---- 제조 화면 (PRD 3.2) ----
+     JS로 스크롤 높이를 재지 않는다 — main(#app)이 이미 overflow-y: auto라
+     카드가 늘어나면 그 안에서 자연스럽게 흐르며 스크롤된다(Task 7의 "잘린 카드"류
+     버그는 JS로 스크롤 구간을 잘라낼 때만 생긴다). */
+  .barista-screen { max-width: 1100px; margin: 0 auto; }
+  .order-grid {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 16px;
+  }
+  .order-card {
+    display: flex; flex-direction: column; gap: 10px; padding: 16px;
+    background: var(--panel); border: 3px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  /* 지연: 색에만 기대지 않는다 — 배경색 + 두꺼운 테두리 + ⏰ 아이콘, 세 가지를 함께 쓴다 */
+  .order-card.late { border-color: var(--danger); border-width: 4px; background: #fdece8; }
+  .order-no { font-size: calc(40px * var(--scale)); font-weight: 900; color: var(--brand); line-height: 1; }
+  .order-items { display: flex; flex-direction: column; gap: 8px; }
+  .oi { display: flex; align-items: center; gap: 10px; }
+  .oi-thumb {
+    width: 44px; height: 44px; flex-shrink: 0; border-radius: 10px; background: var(--bg);
+    border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
+    overflow: hidden; font-size: 22px;
+  }
+  .oi-thumb img { width: 100%; height: 100%; object-fit: cover; }
+  .oi-name { flex: 1; min-width: 0; font-weight: 700; font-size: calc(16px * var(--scale)); overflow-wrap: break-word; }
+  .oi-qty { font-size: calc(16px * var(--scale)); color: var(--brand-dark); flex-shrink: 0; }
+  .oi-soldout {
+    flex-shrink: 0; padding: 4px 10px; border-radius: 10px; font-size: calc(12px * var(--scale));
+    font-weight: 700; background: var(--panel); border: 2px solid var(--line); color: var(--muted);
+    min-height: 32px;
+  }
+  .oi-soldout.on { background: var(--danger); border-color: var(--danger); color: #fff; }
+  .order-elapsed { display: flex; align-items: center; gap: 6px; color: var(--muted); font-size: calc(14px * var(--scale)); }
+  .late-badge { display: none; font-size: calc(18px * var(--scale)); }
+  .order-card.late .late-badge { display: inline; }
+  .order-card.late .order-elapsed { color: var(--danger); font-weight: 700; }
 </style>
 </head>
 <body>
@@ -516,6 +554,19 @@ function cartSetQty(cart, menuId, qty) {
 
 function cartTotal(cart) {
   return cart.reduce((sum, c) => sum + (c.price || 0) * c.qty, 0);
+}
+
+// ---- 제조 대기 목록 ----
+// 정렬은 반드시 createdAt 기준이다.
+// 주문번호는 초기화(3.6.1) 때문에 같은 날 중복될 수 있으므로 정렬 키로 쓰면 안 된다.
+function waitingOrders(orders) {
+  return orders
+    .filter((o) => o.status === 'waiting')
+    .sort((a, b) => a.createdAt - b.createdAt);
+}
+
+function isLate(order, now, lateMinutes) {
+  return now - order.createdAt > lateMinutes * 60 * 1000;
 }
 
 // ===== 3. 백엔드 어댑터 =====
@@ -1633,10 +1684,166 @@ async function submitOrder() {
   }
 }
 
+// ---- 제조 화면 (PRD 3.2) ----
+// 바리스타 학생이 "무엇을 몇 개 만들지"만 보고, 다 만들면 버튼 하나만 누르면 된다.
+// 레이아웃은 main(#app)이 이미 가진 overflow-y: auto에 그대로 맡기는 흐르는 카드
+// 그리드다 — Task 7에서 스크롤 구간을 JS로 재다가 세 번 고친 전례가 있어서,
+// 여기서는 아예 높이를 재지 않는 쪽을 택했다(잴 게 없으면 잘못 잴 일도 없다).
+
+// 경과 시간·지연 표시를 10초마다 다시 그리지 않고 이 값만 갱신한다.
+// 역할이 바뀌거나(다른 화면으로 이동) 주문 데이터가 바뀌어 render()가 다시 불리면
+// 카드가 통째로 새로 만들어지므로, 그때마다 반드시 이전 타이머를 지워야
+// 재렌더 때마다 인터벌이 쌓이지 않는다.
+let baristaTimer = null;
+function stopBaristaTimer() {
+  if (baristaTimer) { clearInterval(baristaTimer); baristaTimer = null; }
+}
+
+// 카드 한 장의 "경과 시간·지연 여부"만 갱신한다(그리기는 buildOrderCard가 한다).
+function updateCardTiming(card, order, now, lateMinutes) {
+  const late = isLate(order, now, lateMinutes);
+  card.classList.toggle('late', late);   // 색에만 기대지 않는다: 두꺼운 테두리(CSS) + 아래 ⏰ 아이콘과 함께 쓴다
+  const mins = Math.max(0, Math.floor((now - order.createdAt) / 60000));
+  card.querySelector('.elapsed-text').textContent = `${mins}분 경과`;
+}
+
+// 재료가 떨어진 걸 가장 먼저 아는 사람이 바리스타이므로, 관리 화면까지 가지 않고
+// 여기서 바로 품절 처리할 수 있게 한다. set은 필드 단위로 merge하므로
+// soldOut 한 필드만 보낸다(메뉴 객체 전체나 배열을 잘못 보내면 다른 필드가 날아간다).
+function toggleMenuSoldOut(menuId) {
+  const menu = state.menus.find((m) => m.id === menuId);
+  if (!menu) return;
+  state.backend.set('menus', menuId, { soldOut: !menu.soldOut });
+}
+
+// 주문 한 줄(메뉴 하나) — 사진(또는 이모지) + 이름 + 수량을 항상 함께 보여준다(AAC 원칙).
+function buildOrderItemRow(item) {
+  const row = document.createElement('div');
+  row.className = 'oi';
+
+  const thumb = document.createElement('div');
+  thumb.className = 'oi-thumb';
+  if (item.photo) {
+    const img = document.createElement('img');
+    img.src = item.photo;
+    img.alt = '';
+    thumb.appendChild(img);
+  } else {
+    const span = document.createElement('span');
+    span.className = 'emoji';
+    span.textContent = item.emoji || '☕';
+    thumb.appendChild(span);
+  }
+  row.appendChild(thumb);
+
+  const name = document.createElement('span');
+  name.className = 'oi-name';
+  name.textContent = item.name || '';
+  row.appendChild(name);
+
+  const qty = document.createElement('b');
+  qty.className = 'oi-qty';
+  qty.textContent = `×${item.qty}`;
+  row.appendChild(qty);
+
+  const menu = state.menus.find((m) => m.id === item.menuId);
+  const soldOutBtn = document.createElement('button');
+  soldOutBtn.type = 'button';
+  soldOutBtn.className = 'oi-soldout' + (menu?.soldOut ? ' on' : '');
+  soldOutBtn.textContent = menu?.soldOut ? '품절 해제' : '품절';
+  soldOutBtn.setAttribute('aria-label', `${item.name} ${menu?.soldOut ? '품절 해제' : '품절 처리'}`);
+  soldOutBtn.onclick = () => toggleMenuSoldOut(item.menuId);
+  row.appendChild(soldOutBtn);
+
+  return row;
+}
+
+// 대기 카드 한 장.
+function buildOrderCard(order, now, lateMinutes) {
+  const card = document.createElement('div');
+  card.className = 'order-card';
+  card.dataset.orderId = order.id;
+
+  const no = document.createElement('div');
+  no.className = 'order-no';
+  no.textContent = String(order.orderNo);
+  card.appendChild(no);
+
+  const items = document.createElement('div');
+  items.className = 'order-items';
+  for (const item of order.items) items.appendChild(buildOrderItemRow(item));
+  card.appendChild(items);
+
+  const elapsed = document.createElement('div');
+  elapsed.className = 'order-elapsed';
+  const badge = document.createElement('span');
+  badge.className = 'late-badge';
+  badge.setAttribute('aria-hidden', 'true');   // 색에만 기대지 않는 지연 표시 — 아이콘
+  badge.textContent = '⏰';
+  const text = document.createElement('span');
+  text.className = 'elapsed-text';
+  elapsed.append(badge, text);
+  card.appendChild(elapsed);
+
+  const doneBtn = document.createElement('button');
+  doneBtn.type = 'button';
+  doneBtn.className = 'btn ok big';
+  doneBtn.textContent = '완료';
+  doneBtn.setAttribute('aria-label', `${order.orderNo}번 주문 완료`);
+  doneBtn.onclick = () => markReady(order);
+  card.appendChild(doneBtn);
+
+  updateCardTiming(card, order, now, lateMinutes);
+  return card;
+}
+
+// 완료 + 되돌리기 (접근성 원칙 4: 모든 동작은 되돌릴 수 있다)
+async function markReady(order) {
+  await state.backend.set('orders', order.id, { status: 'ready', readyAt: Date.now() });
+  toast(`${order.orderNo}번 호출했어요`, {
+    actionText: '되돌리기',
+    ms: CONFIG.undoSeconds * 1000,
+    onAction: () => state.backend.set('orders', order.id, { status: 'waiting', readyAt: null }),
+  });
+}
+
+function renderBaristaView(el) {
+  stopBaristaTimer();
+  const list = waitingOrders(state.orders);
+  const lateMinutes = Number(state.settings.lateMinutes) || CONFIG.defaults.lateMinutes;
+
+  const wrap = document.createElement('div');
+  wrap.className = 'barista-screen';
+
+  if (list.length === 0) {
+    const hint = document.createElement('p');
+    hint.className = 'empty-hint';
+    hint.textContent = '지금은 만들 음료가 없어요. 잠시 쉬어도 좋아요 :)';
+    wrap.appendChild(hint);
+  } else {
+    const grid = document.createElement('div');
+    grid.className = 'order-grid';
+    const now0 = Date.now();
+    for (const order of list) grid.appendChild(buildOrderCard(order, now0, lateMinutes));
+    wrap.appendChild(grid);
+  }
+  el.appendChild(wrap);
+
+  // 경과 시간은 시간이 흐르기만 해도 바뀐다 — 데이터가 안 바뀌어도 10초마다 다시 잰다.
+  baristaTimer = setInterval(() => {
+    const now = Date.now();
+    const lm = Number(state.settings.lateMinutes) || CONFIG.defaults.lateMinutes;
+    for (const order of list) {
+      const card = el.querySelector(`.order-card[data-order-id="${order.id}"]`);
+      if (card) updateCardTiming(card, order, now, lm);
+    }
+  }, 10000);
+}
+
 // ---- 라우팅 ----
 const VIEWS = {
   order:   { render: renderOrderView },
-  barista: { render: (el) => { el.textContent = '제조 화면 준비 중'; } },
+  barista: { render: renderBaristaView },
   display: { render: (el) => { el.textContent = '호출 화면 준비 중'; } },
   admin: {
     render(el) {
@@ -1647,6 +1854,9 @@ const VIEWS = {
 };
 
 function render() {
+  // 제조 화면이 떠 있었다면 카드를 갈아엎기 전에 경과 시간 인터벌부터 지운다.
+  // 그래야 다른 화면으로 옮기거나 데이터가 바뀌어 다시 그릴 때마다 인터벌이 쌓이지 않는다.
+  stopBaristaTimer();
   const el = document.getElementById('app');
   const bar = document.getElementById('topbar');
   if (!state.role) {
@@ -1851,6 +2061,32 @@ test('합계를 계산한다', () => {
   ];
   eq(cartTotal(cart), 3500);
   eq(cartTotal([]), 0);
+});
+
+// ---- 제조 대기 목록 ----
+test('대기 주문만 오래된 순으로 보여준다', () => {
+  const orders = [
+    { id: '3', status: 'waiting',   createdAt: 300 },
+    { id: '1', status: 'waiting',   createdAt: 100 },
+    { id: '2', status: 'ready',     createdAt: 200 },
+    { id: '4', status: 'cancelled', createdAt: 400 },
+  ];
+  eq(waitingOrders(orders).map((o) => o.id), ['1', '3']);
+});
+
+test('주문번호가 겹쳐도 createdAt 기준으로 줄을 세운다', () => {
+  // 주문번호 초기화 후에는 같은 날 1번이 두 개 있을 수 있다
+  const orders = [
+    { id: 'new', status: 'waiting', orderNo: 1, createdAt: 900 },
+    { id: 'old', status: 'waiting', orderNo: 1, createdAt: 100 },
+  ];
+  eq(waitingOrders(orders).map((o) => o.id), ['old', 'new']);
+});
+
+test('기준 시간을 넘긴 주문을 지연으로 본다', () => {
+  const now = 10 * 60 * 1000;
+  eq(isLate({ createdAt: 0 }, now, 5), true,  '10분 경과 > 기준 5분');
+  eq(isLate({ createdAt: 8 * 60 * 1000 }, now, 5), false, '2분 경과 < 기준 5분');
 });
 
 // ===== 7. 시작 =====
