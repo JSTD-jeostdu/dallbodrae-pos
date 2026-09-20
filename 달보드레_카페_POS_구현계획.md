@@ -917,6 +917,16 @@ if (new URLSearchParams(location.search).has('selftest')) {
   // Firebase 키가 비어 있으면 로컬 모드로 동작한다 (PRD 6.2)
   state.backend = createLocalBackend();
 
+  // 저장된 데이터가 깨져 있으면 로컬 백엔드는 조용히 빈 상태로 시작한다.
+  // 선생님 눈에는 "메뉴가 이유 없이 사라진" 것으로 보이므로 반드시 알린다.
+  const raw = localStorage.getItem(CONFIG.localStorageKey);
+  if (raw) {
+    try { JSON.parse(raw); }
+    catch {
+      toast('저장된 자료를 읽지 못했어요. 메뉴를 다시 등록해 주세요.', { ms: 8000 });
+    }
+  }
+
   for (const name of ['menus', 'ingredients', 'orders']) {
     state.backend.subscribe(name, (docs) => { state[name] = docs; render(); });
   }
