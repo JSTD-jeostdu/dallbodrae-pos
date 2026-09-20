@@ -91,6 +91,49 @@ const CONFIG = {
 const FONT_SCALES = { normal: 1, large: 1.25, xlarge: 1.55 };
 
 // ===== 2. 순수 로직 =====
+// 이 구획에는 DOM 접근과 네트워크 호출을 넣지 않는다 (자가 테스트 대상).
+
+// ---- 영업일 ----
+// 상시 운영이므로 날짜가 바뀌면 주문번호가 저절로 1번부터 다시 시작한다.
+function businessDateOf(date = new Date()) {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${date.getFullYear()}-${p(date.getMonth() + 1)}-${p(date.getDate())}`;
+}
+
+// ---- 주문번호 ----
+// counters/{영업일}.value 는 "마지막으로 발번한 번호"를 담는다. 없으면 0으로 본다.
+function nextOrderNo(counterValue) {
+  return (counterValue || 0) + 1;
+}
+
+// ---- 주문번호 초기화 (PRD 3.6.1) ----
+// 아직 받아가지 않은 주문이 남은 채로 번호를 되돌리면 같은 번호가 두 번 불린다.
+// 그래서 대기 건수를 보여주고 한 번 더 확인받는다.
+function resetPlan(counterValue, startFrom, waitingCount) {
+  if (!Number.isInteger(startFrom) || startFrom < 1) {
+    return {
+      ok: false,
+      needsConfirm: false,
+      message: '시작 번호는 1 이상의 정수여야 합니다.',
+      newCounterValue: counterValue,
+    };
+  }
+  const newCounterValue = startFrom - 1;
+  if (waitingCount > 0) {
+    return {
+      ok: true,
+      needsConfirm: true,
+      message: `아직 받지 않은 주문이 ${waitingCount}건 있어요.\n지금 번호를 되돌리면 같은 번호가 두 번 불릴 수 있습니다.`,
+      newCounterValue,
+    };
+  }
+  return {
+    ok: true,
+    needsConfirm: false,
+    message: `주문번호를 ${startFrom}번부터 다시 시작합니다.`,
+    newCounterValue,
+  };
+}
 
 // ===== 3. 백엔드 어댑터 =====
 
@@ -131,6 +174,45 @@ test('CONFIG에 필수 값이 있다', () => {
   eq(CONFIG.dataRoot, 'dallbodrae_pos');
   eq(typeof CONFIG.spaceId, 'string');
   eq(CONFIG.appName, 'dallbodrae-pos');
+});
+
+// ---- 영업일 ----
+test('영업일은 로컬 시간 기준 YYYY-MM-DD 이다', () => {
+  eq(businessDateOf(new Date(2026, 8, 20, 9, 30)), '2026-09-20');
+  eq(businessDateOf(new Date(2026, 0, 5, 23, 59)), '2026-01-05', '한 자리 월·일은 0으로 채운다');
+});
+
+// ---- 주문번호 발번 ----
+test('주문번호는 카운터 다음 값이다', () => {
+  eq(nextOrderNo(0), 1, '하루의 첫 주문은 1번');
+  eq(nextOrderNo(7), 8);
+});
+
+// ---- 주문번호 초기화 판정 ----
+test('대기 주문이 없으면 확인 한 번으로 초기화한다', () => {
+  const p = resetPlan(57, 1, 0);
+  eq(p.ok, true);
+  eq(p.needsConfirm, false);
+  eq(p.newCounterValue, 0, '1번부터 시작하려면 카운터는 0');
+});
+
+test('시작 번호를 지정할 수 있다', () => {
+  eq(resetPlan(57, 100, 0).newCounterValue, 99);
+});
+
+test('대기 주문이 있으면 중복 경고와 함께 한 번 더 확인받는다', () => {
+  const p = resetPlan(57, 1, 3);
+  eq(p.ok, true);
+  eq(p.needsConfirm, true);
+  if (!p.message.includes('3건')) throw new Error(`대기 건수가 안내에 없습니다: ${p.message}`);
+  if (!p.message.includes('두 번')) throw new Error(`번호 중복 경고가 없습니다: ${p.message}`);
+});
+
+test('시작 번호가 1 미만이거나 정수가 아니면 거부한다', () => {
+  eq(resetPlan(57, 0, 0).ok, false);
+  eq(resetPlan(57, -3, 0).ok, false);
+  eq(resetPlan(57, 1.5, 0).ok, false);
+  eq(resetPlan(57, NaN, 0).ok, false);
 });
 
 // ===== 7. 시작 =====
