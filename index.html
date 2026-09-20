@@ -107,13 +107,26 @@
   .role-grid button { font-size: calc(22px * var(--scale)); font-weight: 900; }
 
   /* ---- 토스트 ----
-     되돌릴 수 있는 알림. 눈에 잘 띄되 화면을 막지 않는다. */
+     되돌릴 수 있는 알림. 눈에 잘 띄되 화면을 막지 않는다.
+     여러 개가 동시에 뜰 수 있어(예: 완료 직후 품절 토글), 좌표 하나에 고정하지 않고
+     .toast-stack 안에 쌓는다 — 각 토스트는 보통 문서 흐름(static)으로 놓이므로
+     하나가 사라져도 나머지가 flex 레이아웃을 따라 자연스럽게 자리를 메운다.
+     틀 자체는 bottom: 28px로 아래쪽에 고정해 두고, 안에서는 보통 순서(column)로
+     쌓는다 — 틀의 아래쪽 끝은 항상 28px 그 자리에 머물고, 내용이 늘면 틀이
+     위로만 커지므로, 나중에 뜬(마지막 자식) 토스트가 항상 그 고정 자리 가장
+     가까이 있고 먼저 뜬 토스트는 위로 밀려 올라간다 — 둘 다 겹치지 않고
+     온전히 보이고 눌린다. */
+  .toast-stack {
+    position: fixed; left: 50%; bottom: var(--toast-bottom, 28px); transform: translateX(-50%);
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+    max-width: 90vw; z-index: 500;
+    pointer-events: none;   /* 토스트 사이 빈 틈이 뒤쪽 화면의 클릭을 막지 않게 */
+  }
   .toast {
-    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
-    display: flex; align-items: center; gap: 16px;
+    display: flex; align-items: center; gap: 16px; pointer-events: auto;
     background: var(--ink); color: #fff; padding: 14px 22px; border-radius: var(--radius);
     box-shadow: 0 6px 20px rgba(0,0,0,.25); font-size: calc(15px * var(--scale));
-    max-width: 90vw; z-index: 500;
+    max-width: 90vw;
   }
   .toast button {
     background: var(--brand); color: #fff; font-weight: 700;
@@ -678,8 +691,24 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
 
 // ===== 4. 공통 UI 부품 =====
 
+// 화면에 하나뿐인 토스트 쌓기 틀. #app처럼 절대 다시 만들지 않고 한 번만 붙인다.
+let toastStack = null;
+function getToastStack() {
+  if (!toastStack) {
+    toastStack = document.createElement('div');
+    toastStack.className = 'toast-stack';
+    document.body.appendChild(toastStack);
+  }
+  return toastStack;
+}
+const TOAST_STACK_MAX = 3;   // 한꺼번에 너무 많이 쌓이면 화면을 가리므로 오래된 것부터 치운다
+
 // 되돌릴 수 있는 알림. 접근성 원칙 4번(모든 동작은 되돌릴 수 있다)의 손발이다.
+// 여러 토스트가 동시에 떠 있어도(완료 직후 품절 토글 등) 전부 온전히 보이고
+// 눌려야 한다 — 하나가 다른 하나의 되돌리기를 가리면 "보이는데 안 눌리는" 거짓
+// 손잡이가 되어, 되돌리기가 아예 없는 것보다 나쁘다.
 function toast(text, { actionText, onAction, ms = 3000 } = {}) {
+  const stack = getToastStack();
   const el = document.createElement('div');
   el.className = 'toast';
   el.innerHTML = `<span></span>`;
@@ -690,8 +719,14 @@ function toast(text, { actionText, onAction, ms = 3000 } = {}) {
     b.onclick = () => { el.remove(); onAction?.(); };
     el.appendChild(b);
   }
-  document.body.appendChild(el);
+  stack.appendChild(el);
   setTimeout(() => el.remove(), ms);
+
+  // 너무 많이 쌓이면 가장 오래된 것(맨 위)부터 즉시 치운다 — 실행하지 않고
+  // 그냥 없앤다는 점에서 시간이 다 돼 사라지는 것과 같다(동작을 대신 실행하지 않는다).
+  while (stack.children.length > TOAST_STACK_MAX) {
+    stack.firstChild.remove();
+  }
 }
 
 // 확인창. 파괴적인 동작 앞에 반드시 둔다.
@@ -748,6 +783,9 @@ function applyFontScale(key) {
   // 있다. 화면 전체를 다시 그리면(render) 다른 화면(관리 화면 입력 중인 값 등)이
   // 끊기므로, 주문 화면 패널만 찾아 다시 잰다.
   reclampOrderScreen();
+  // footer 높이도 글자 크기에 따라 바뀐다 — 옵저버가 잡기 전에 한 프레임이라도
+  // 토스트가 footer를 가리는 일이 없게 즉시 한 번 더 맞춘다.
+  syncToastBottomOffset();
 }
 
 // applyFontScale이 호출하는, 주문 화면 전용 재계산. 주문 화면이 떠 있지 않으면
@@ -794,6 +832,30 @@ function watchOrderScreenResize() {
     });
   });
   mainResizeObserver.observe(main);
+}
+
+// ---- 토스트 틀이 footer를 가리지 않게 ----
+// .toast-stack은 화면 맨 아래에 fixed로 고정되는데 footer도 같은 자리에 있다.
+// 토스트가 여러 개 쌓이거나(품절+완료가 겹칠 때) 글자 크기가 커지면 틀의 높이가
+// 늘어나 footer와 겹칠 수 있다. footer의 실제 렌더 높이(글자 크기·좁은 화면에서의
+// 줄바꿈에 따라 바뀐다)만큼 토스트 틀의 바닥 여백을 띄워, 토스트가 항상 footer
+// 위에서만 쌓이게 한다.
+function syncToastBottomOffset() {
+  const footer = document.querySelector('footer');
+  if (!footer) return;
+  document.documentElement.style.setProperty('--toast-bottom', `${footer.offsetHeight + 16}px`);
+}
+
+// footer도 #app처럼 절대 다시 만들어지지 않는 고정 엘리먼트라, 옵저버를 한 번만
+// 달아 두면 된다(글자 크기 변경은 applyFontScale에서 즉시 한 번 더 불러 한 프레임의
+// 지연도 없앤다).
+let footerResizeObserver = null;
+function watchFooterResize() {
+  if (footerResizeObserver || typeof ResizeObserver === 'undefined') return;
+  const footer = document.querySelector('footer');
+  if (!footer) return;
+  footerResizeObserver = new ResizeObserver(() => syncToastBottomOffset());
+  footerResizeObserver.observe(footer);
 }
 
 // 상단바 가/가/가 버튼 전용 — 이 기기만의 선택으로 기억한다(localStorage).
@@ -2151,6 +2213,10 @@ if (new URLSearchParams(location.search).has('selftest')) {
   // 지금 로컬인지 클라우드인지 상단바에 표시한다.
   // Task 11에서 Firestore를 붙이면 '연결됨'으로 바뀐다.
   document.getElementById('net-tag').textContent = '연습 모드';
+
+  // 토스트가 footer를 가리지 않도록 처음 한 번 맞추고, 이후 크기 변화를 계속 지켜본다.
+  syncToastBottomOffset();
+  watchFooterResize();
 
   // 글자 크기 초기값: 이 기기의 선택 → 선생님 기본값 → 전역 기본값 순서로 정한다.
   applyFontScale(localStorage.getItem(CONFIG.fontScaleKey) || state.settings.fontScale || CONFIG.defaults.fontScale);
