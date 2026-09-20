@@ -1132,6 +1132,16 @@ VIEWS.admin = {
 - 메뉴 목록: 각 행에 썸네일, 이름, 가격, `위/아래` 순서 버튼, `품절` 토글, `수정`, `삭제`
 - `＋ 메뉴 추가` → 모달: 이름 / 가격 / 이모지 / **사진 선택**
 - 사진 선택 시 `shrinkImage(file)` → 미리보기 표시 → 저장 시 `photo` 필드에 data URL
+- **저장 전 용량 확인** — `shrinkImage`는 3회 재시도 후에도 목표 용량을 못 맞추면 그냥 큰
+  data URL을 돌려준다. 그대로 Firestore에 쓰면 1MB 문서 제한에 걸려 **아무 안내 없이
+  저장이 실패한다.** 저장 직전에 확인하고, 초과하면 선생님이 알아들을 말로 알린다:
+
+```js
+if (photo && dataUrlBytes(photo) > CONFIG.photoMaxBytes) {
+  toast('사진 용량이 너무 커요. 다른 사진으로 다시 올려 주세요.', { ms: 5000 });
+  return;   // 저장하지 않는다
+}
+```
 - 사진이 없으면 `emoji` 필드를 쓴다 (기본값 `☕`)
 - 삭제는 `confirmModal`로 확인 (`okClass: 'danger'`)
 - 저장은 `backend.set('menus', id, patch)` — 필드 단위 merge
