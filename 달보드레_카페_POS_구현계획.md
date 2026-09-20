@@ -1541,9 +1541,16 @@ PRD 3.3. 손님이 보는 화면이므로 조작 요소가 없다.
 - Consumes: `state`, `CONFIG.displayRecentCount`
 - Produces:
   - `recentCalls(orders, count) → order[]` — `status === 'ready'`, `readyAt` 내림차순 (순수 함수)
-  - `callText(template, orderNo) → string` (순수 함수)
+  - `sinoKorean(n) → string` — 숫자를 한자어 수사 한글로 (순수 함수)
+  - `callText(template, orderNo) → string` — **화면용**, 숫자 그대로 (순수 함수)
+  - `speechText(template, orderNo) → string` — **음성용**, 한자어 수사로 (순수 함수)
   - `playChime()`, `speak(text)`
   - `VIEWS.display.render(el)`
+
+> **왜 음성용을 따로 두는가** — 한국어 TTS는 `3번`을 세는 단위로 읽어 **[세 번]**으로
+> 발음한다. 주문번호는 횟수가 아니라 이름표이므로 **[삼 번]**이 맞다.
+> 화면에는 숫자를 크게 보여주고(학생·손님이 식별해야 한다), 음성으로 넘길 때만
+> 한글 수사로 바꾼다.
 
 - [ ] **Step 1: 실패하는 테스트 추가**
 
@@ -1564,9 +1571,44 @@ test('호출 문구의 {번호}를 바꾼다', () => {
   eq(callText('{번호}번요! {번호}번!', 3), '3번요! 3번!', '여러 번 나와도 모두 바꾼다');
   eq(callText('음료 나왔습니다.', 3), '음료 나왔습니다.', '{번호}가 없어도 그대로 쓴다');
 });
+
+// ---- 숫자를 한자어 수사로 (음성용) ----
+test('한 자리 수를 읽는다', () => {
+  eq(sinoKorean(1), '일');
+  eq(sinoKorean(3), '삼');
+  eq(sinoKorean(6), '육');
+  eq(sinoKorean(9), '구');
+});
+
+test('십 단위에서 앞의 1을 생략한다', () => {
+  eq(sinoKorean(10), '십', '십일이 아니라 십');
+  eq(sinoKorean(11), '십일');
+  eq(sinoKorean(15), '십오');
+  eq(sinoKorean(20), '이십');
+  eq(sinoKorean(25), '이십오');
+  eq(sinoKorean(99), '구십구');
+});
+
+test('백·천 단위도 같은 규칙을 따른다', () => {
+  eq(sinoKorean(100), '백', '일백이 아니라 백');
+  eq(sinoKorean(101), '백일');
+  eq(sinoKorean(110), '백십');
+  eq(sinoKorean(120), '백이십');
+  eq(sinoKorean(999), '구백구십구');
+  eq(sinoKorean(1000), '천');
+  eq(sinoKorean(1234), '천이백삼십사');
+});
+
+test('음성 문구는 번호를 한글 수사로 바꾼다', () => {
+  eq(speechText('{번호}번 손님, 음료 나왔습니다.', 3),
+     '삼번 손님, 음료 나왔습니다.', 'TTS가 [세 번]으로 읽지 않게 한다');
+  eq(speechText('{번호}번 손님, 음료 나왔습니다.', 25),
+     '이십오번 손님, 음료 나왔습니다.');
+  eq(speechText('음료 나왔습니다.', 3), '음료 나왔습니다.');
+});
 ```
 
-- [ ] **Step 2: 실패 확인** — `FAIL 22/24`
+- [ ] **Step 2: 실패 확인** — `FAIL 22/28`
 
 - [ ] **Step 3: 2번 구획에 구현 작성**
 
@@ -1579,12 +1621,43 @@ function recentCalls(orders, count) {
     .slice(0, count);
 }
 
+// 화면용 — 숫자를 그대로 쓴다. 손님과 학생이 번호표와 눈으로 맞춰야 한다.
 function callText(template, orderNo) {
   return String(template).split('{번호}').join(String(orderNo));
 }
+
+// ---- 숫자를 한자어 수사로 (음성용) ----
+// 한국어 TTS는 '3번'을 세는 단위로 보고 [세 번]이라고 읽는다.
+// 주문번호는 횟수가 아니라 이름표이므로 [삼 번]이 맞다.
+const SINO_DIGITS = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+const SINO_UNITS = ['', '십', '백', '천'];
+
+function sinoKorean(n) {
+  const num = Math.floor(Math.abs(Number(n) || 0));
+  if (num === 0) return '영';
+
+  let out = '';
+  const digits = String(num).split('').reverse();   // 1의 자리부터
+  for (let i = digits.length - 1; i >= 0; i--) {
+    const d = Number(digits[i]);
+    if (d === 0) continue;
+    // 십·백·천 앞의 1은 읽지 않는다 (10 → '십', 100 → '백')
+    const head = (d === 1 && i > 0) ? '' : SINO_DIGITS[d];
+    out += head + (SINO_UNITS[i] || '');
+  }
+  return out;
+}
+
+// 음성용 — 번호만 한글 수사로 바꾼다.
+function speechText(template, orderNo) {
+  return String(template).split('{번호}').join(sinoKorean(orderNo));
+}
 ```
 
-- [ ] **Step 4: 통과 확인** — `PASS 24/24`
+> `sinoKorean`은 만 단위 이상을 다루지 않는다. 하루 주문번호가 9,999를 넘을 일이 없고,
+> 넘더라도 `SINO_UNITS`가 없는 자리는 단위 없이 읽혀 알아들을 수는 있다.
+
+- [ ] **Step 4: 통과 확인** — `PASS 28/28`
 
 - [ ] **Step 5: 호출 화면 구현**
 
@@ -1633,12 +1706,26 @@ function onDisplayData() {
   if (top && top.id !== lastCalledId) {
     lastCalledId = top.id;
     playChime();
-    setTimeout(() => speak(callText(state.settings.ttsText, top.orderNo)), 900);
+    setTimeout(() => speak(speechText(state.settings.ttsText, top.orderNo)), 900);
   }
 }
 ```
 
 첫 로딩 때 과거 주문으로 갑자기 호출이 울리지 않도록, 구독 첫 콜백에서는 `lastCalledId`만 채우고 연출을 건너뛴다.
+
+- [ ] **Step 5-1: Task 7의 주문 완료 음성도 함께 고친다**
+
+Task 7이 주문 완료 후 말하는 `` `${orderNo}번이에요` `` 도 같은 문제를 갖는다
+(TTS가 [세 번]으로 읽는다). 이 태스크에서 `sinoKorean`을 만들었으므로 그 호출 지점도
+함께 바꾼다.
+
+```js
+// 변경 전: new SpeechSynthesisUtterance(`${orderNo}번이에요`)
+// 변경 후:
+new SpeechSynthesisUtterance(`${sinoKorean(orderNo)}번이에요`)
+```
+
+화면에 크게 뜨는 숫자는 그대로 둔다 — 학생과 손님이 번호표와 눈으로 맞춰야 한다.
 
 - [ ] **Step 6: 화면 확인**
 
@@ -1778,7 +1865,7 @@ api.getCounterSync = (bd) => (load().counters || {})[bd] || 0;
 api.getCounter = async (bd) => api.getCounterSync(bd);
 ```
 
-- [ ] **Step 3: 자가 테스트 확인** — `PASS 25/25`
+- [ ] **Step 3: 자가 테스트 확인** — `PASS 29/29`
 
 - [ ] **Step 4: 화면 확인**
 
@@ -2165,7 +2252,7 @@ test('재료가 부족한 메뉴를 알아낸다', () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `FAIL 25/33`
+- [ ] **Step 2: 실패 확인** — `FAIL 29/37`
 
 - [ ] **Step 3: 2번 구획에 구현 작성**
 
@@ -2211,7 +2298,7 @@ function menuLowStock(menu, ingredientMap) {
 }
 ```
 
-- [ ] **Step 4: 통과 확인** — `PASS 33/33`
+- [ ] **Step 4: 통과 확인** — `PASS 37/37`
 
 - [ ] **Step 5: 커밋**
 
@@ -2292,7 +2379,7 @@ for (const [ingredientId, d] of Object.entries(delta)) {
 
 `menuLowStock(menu, ingredientMap)`가 참이면 타일 모서리에 `재료 부족` 배지. **타일은 계속 눌린다** (품절과 다르다 — 경고일 뿐이다).
 
-- [ ] **Step 6: 자가 테스트 확인** — `PASS 33/33`
+- [ ] **Step 6: 자가 테스트 확인** — `PASS 37/37`
 
 - [ ] **Step 7: 화면 확인**
 
@@ -2481,7 +2568,7 @@ test('CSV는 줄바꿈으로 이어붙인다', () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `FAIL 33/41`
+- [ ] **Step 2: 실패 확인** — `FAIL 37/45`
 
 - [ ] **Step 3: 2번 구획에 구현 작성**
 
@@ -2537,7 +2624,7 @@ function toCsv(rows) {
 }
 ```
 
-- [ ] **Step 4: 통과 확인** — `PASS 41/41`
+- [ ] **Step 4: 통과 확인** — `PASS 45/45`
 
 - [ ] **Step 5: 커밋**
 
@@ -2681,7 +2768,7 @@ test('빠른 입력에는 권종과 딱 맞는 금액이 들어간다', () => {
 });
 ```
 
-- [ ] **Step 2: 실패 확인** — `FAIL 41/44`
+- [ ] **Step 2: 실패 확인** — `FAIL 45/48`
 
 - [ ] **Step 3: 구현**
 
@@ -2703,7 +2790,7 @@ function quickCashOptions(total, units) {
 }
 ```
 
-- [ ] **Step 4: 통과 확인** — `PASS 44/44`
+- [ ] **Step 4: 통과 확인** — `PASS 48/48`
 
 - [ ] **Step 5: 화면에 3단계 반영**
 
@@ -2810,7 +2897,7 @@ MSG
 - 문구 입력칸 (`{번호}`가 실제 번호로 바뀐다는 안내 + 미리보기)
 - 속도·볼륨 슬라이더
 - 차임음 on/off
-- **`호출 테스트`** 버튼 — `playChime()` + `speak(callText(문구, 3))`
+- **`호출 테스트`** 버튼 — `playChime()` + `speak(speechText(문구, 3))` (음성은 한자어 수사)
 
 - [ ] **Step 3: 데이터 초기화**
 
@@ -2878,7 +2965,7 @@ MSG
 
 - [ ] **Step 1: 전체 자가 테스트**
 
-배포된 주소에 `?selftest=1` → `PASS 44/44`
+배포된 주소에 `?selftest=1` → `PASS 48/48`
 
 - [ ] **Step 2: 기기 3대 실전 리허설**
 
