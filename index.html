@@ -38,9 +38,114 @@
   main { flex: 1; padding: 16px; min-height: 0; }
   footer { text-align: center; padding: 10px; color: var(--muted); font-size: calc(13px * var(--scale)); }
   #selftest-result { padding: 20px; font-size: 15px; white-space: pre-wrap; line-height: 1.7; }
+
+  /* ---- 공통 버튼 ---- */
+  .btn {
+    padding: 12px 20px; border-radius: var(--radius); font-weight: 700;
+    font-size: calc(15px * var(--scale)); min-height: 48px;
+  }
+  .btn.primary { background: var(--brand); color: #fff; }
+  .btn.primary:active { background: var(--brand-dark); }
+  .btn.ghost { background: var(--panel); color: var(--ink); border: 2px solid var(--line) !important; }
+  .btn.danger { background: var(--danger); color: #fff; }
+  .btn.ok { background: var(--ok); color: #fff; }
+
+  /* ---- 상단바 ---- */
+  .topbar {
+    display: flex; align-items: center; gap: 14px; flex-wrap: wrap;
+    padding: 10px 16px; background: var(--panel); border-bottom: 2px solid var(--line);
+  }
+  .topbar[hidden] { display: none; }
+  .topbar h1 { font-size: calc(20px * var(--scale)); margin: 0; color: var(--brand); }
+  .role-tag {
+    background: var(--brand); color: #fff; font-weight: 700;
+    padding: 5px 14px; border-radius: 999px; font-size: calc(14px * var(--scale));
+  }
+  .staff {
+    color: var(--muted); font-size: calc(13px * var(--scale));
+  }
+  .spacer { flex: 1; }
+  .net-tag {
+    color: var(--muted); background: var(--bg); border: 1px solid var(--line);
+    padding: 4px 12px; border-radius: 999px; font-size: calc(12px * var(--scale));
+  }
+  .font-switch { display: flex; gap: 6px; align-items: center; }
+  .font-switch button {
+    min-width: 44px; min-height: 44px; border-radius: 12px;
+    background: var(--panel); border: 2px solid var(--line); color: var(--ink);
+  }
+  .font-switch button:nth-child(1) { font-size: 14px; }
+  .font-switch button:nth-child(2) { font-size: 19px; }
+  .font-switch button:nth-child(3) { font-size: 24px; }
+  .font-switch button.on { background: var(--brand); border-color: var(--brand-dark); color: #fff; }
+  #btn-change-role {
+    background: var(--brand-dark); color: #fff; font-weight: 700;
+    padding: 10px 16px; border-radius: var(--radius); font-size: calc(14px * var(--scale));
+    min-height: 44px;
+  }
+
+  /* ---- 역할 선택 화면 ----
+     학생이 처음 만나는 화면이라 카드는 크고, 서로 멀리 떨어뜨려
+     옆 카드를 잘못 누르는 일을 줄인다 (접근성 원칙 3·5). */
+  .role-grid {
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 28px; max-width: 760px; margin: 24px auto; padding: 8px;
+  }
+  .role-grid button {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 10px; min-height: 180px; background: var(--panel);
+    border: 3px solid var(--line); border-radius: var(--radius);
+    box-shadow: 0 3px 10px rgba(0,0,0,.06);
+    color: var(--ink); transition: transform .1s ease, border-color .1s ease;
+  }
+  .role-grid button:active { transform: scale(.96); border-color: var(--brand); }
+  .role-grid button span { font-size: 56px; line-height: 1; }
+  .role-grid button small { color: var(--muted); font-size: calc(14px * var(--scale)); font-weight: 400; }
+  .role-grid button { font-size: calc(22px * var(--scale)); font-weight: 900; }
+
+  /* ---- 토스트 ----
+     되돌릴 수 있는 알림. 눈에 잘 띄되 화면을 막지 않는다. */
+  .toast {
+    position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%);
+    display: flex; align-items: center; gap: 16px;
+    background: var(--ink); color: #fff; padding: 14px 22px; border-radius: var(--radius);
+    box-shadow: 0 6px 20px rgba(0,0,0,.25); font-size: calc(15px * var(--scale));
+    max-width: 90vw; z-index: 500;
+  }
+  .toast button {
+    background: var(--brand); color: #fff; font-weight: 700;
+    padding: 8px 16px; border-radius: 12px; white-space: nowrap;
+  }
+
+  /* ---- 확인창 ----
+     파괴적인 동작 앞에 반드시 세운다 (접근성 원칙 4). */
+  .modal-back {
+    position: fixed; inset: 0; background: rgba(42,35,32,.5);
+    display: flex; align-items: center; justify-content: center; padding: 16px; z-index: 600;
+  }
+  .modal {
+    background: var(--panel); border-radius: var(--radius); padding: 28px;
+    max-width: 420px; width: 100%; box-shadow: 0 10px 30px rgba(0,0,0,.25);
+  }
+  .modal h3 { margin: 0 0 12px; font-size: calc(20px * var(--scale)); color: var(--ink); }
+  .modal p { margin: 0; color: var(--muted); line-height: 1.7; font-size: calc(15px * var(--scale)); white-space: pre-line; }
+  .modal-actions { display: flex; gap: 12px; justify-content: flex-end; margin-top: 22px; }
 </style>
 </head>
 <body>
+<div class="topbar" id="topbar" hidden>
+  <h1 id="topbar-title">달보드레</h1>
+  <span class="role-tag" id="role-tag"></span>
+  <span class="staff" id="staff-tag"></span>
+  <span class="spacer"></span>
+  <span class="net-tag" id="net-tag"></span>
+  <div class="font-switch" role="group" aria-label="글자 크기">
+    <button data-scale="normal">가</button>
+    <button data-scale="large">가</button>
+    <button data-scale="xlarge">가</button>
+  </div>
+  <button id="btn-change-role">역할 바꾸기</button>
+</div>
 <main id="app"></main>
 <footer>Made by 정우쌤</footer>
 
@@ -285,7 +390,110 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
 
 // ===== 4. 공통 UI 부품 =====
 
+// 되돌릴 수 있는 알림. 접근성 원칙 4번(모든 동작은 되돌릴 수 있다)의 손발이다.
+function toast(text, { actionText, onAction, ms = 3000 } = {}) {
+  const el = document.createElement('div');
+  el.className = 'toast';
+  el.innerHTML = `<span></span>`;
+  el.firstChild.textContent = text;
+  if (actionText) {
+    const b = document.createElement('button');
+    b.textContent = actionText;
+    b.onclick = () => { el.remove(); onAction?.(); };
+    el.appendChild(b);
+  }
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
+// 확인창. 파괴적인 동작 앞에 반드시 둔다.
+function confirmModal({ title, msg, okText = '확인', okClass = 'primary', cancelText = '취소' }) {
+  return new Promise((resolve) => {
+    const back = document.createElement('div');
+    back.className = 'modal-back';
+    back.innerHTML = `
+      <div class="modal">
+        <h3></h3><p></p>
+        <div class="modal-actions">
+          <button class="btn ghost" data-no></button>
+          <button class="btn ${okClass}" data-yes></button>
+        </div>
+      </div>`;
+    back.querySelector('h3').textContent = title;
+    back.querySelector('p').textContent = msg;       // \n 을 살리려면 CSS white-space: pre-line
+    back.querySelector('[data-no]').textContent = cancelText;
+    back.querySelector('[data-yes]').textContent = okText;
+    back.querySelector('[data-no]').onclick = () => { back.remove(); resolve(false); };
+    back.querySelector('[data-yes]').onclick = () => { back.remove(); resolve(true); };
+    document.body.appendChild(back);
+  });
+}
+
 // ===== 5. 화면 =====
+const state = {
+  role: null,
+  backend: null,
+  menus: [], ingredients: [], orders: [], settings: {},
+  fontScale: 'normal',
+};
+
+const ROLE_LABEL = { order: '주문', barista: '제조', display: '호출', admin: '관리' };
+
+// ---- 글자 크기 (PRD 3.1.7) ----
+// 학생마다 편차가 커서 설정 깊숙이 넣지 않고 상단바에 상시 노출한다.
+function setFontScale(key) {
+  state.fontScale = FONT_SCALES[key] ? key : 'normal';
+  document.documentElement.style.setProperty('--scale', FONT_SCALES[state.fontScale]);
+  localStorage.setItem(CONFIG.fontScaleKey, state.fontScale);
+  for (const b of document.querySelectorAll('.font-switch button')) {
+    b.classList.toggle('on', b.dataset.scale === state.fontScale);
+  }
+}
+
+// ---- 역할 ----
+function setRole(role) {
+  state.role = role;
+  if (role) localStorage.setItem(CONFIG.roleKey, role);
+  else localStorage.removeItem(CONFIG.roleKey);
+  render();
+}
+function changeRole() { setRole(null); }
+
+// ---- 역할 선택 화면 ----
+function renderRolePicker(el) {
+  el.innerHTML = `
+    <div class="role-grid">
+      <button data-role="order"><span>🧾</span>주문<small>캐셔 학생</small></button>
+      <button data-role="barista"><span>☕</span>제조<small>바리스타 학생</small></button>
+      <button data-role="display"><span>📣</span>호출<small>손님이 보는 화면</small></button>
+      <button data-role="admin"><span>⚙️</span>관리<small>선생님</small></button>
+    </div>`;
+  for (const b of el.querySelectorAll('[data-role]')) {
+    b.onclick = () => setRole(b.dataset.role);
+  }
+}
+
+// ---- 라우팅 ----
+const VIEWS = {
+  order:   { render: (el) => { el.textContent = '주문 화면 준비 중'; } },
+  barista: { render: (el) => { el.textContent = '제조 화면 준비 중'; } },
+  display: { render: (el) => { el.textContent = '호출 화면 준비 중'; } },
+  admin:   { render: (el) => { el.textContent = '관리 화면 준비 중'; } },
+};
+
+function render() {
+  const el = document.getElementById('app');
+  const bar = document.getElementById('topbar');
+  if (!state.role) {
+    bar.hidden = true;
+    renderRolePicker(el);
+    return;
+  }
+  bar.hidden = state.role === 'display';   // 호출 화면은 손님이 보므로 상단바를 감춘다
+  document.getElementById('role-tag').textContent = ROLE_LABEL[state.role];
+  el.innerHTML = '';
+  VIEWS[state.role].render(el);
+}
 
 // ===== 6. 자가 테스트 =====
 // DOM·네트워크를 건드리지 않는 순수 로직만 여기서 검증한다.
@@ -427,7 +635,38 @@ test('로컬 백엔드가 필드를 원자적으로 증감한다', () => {
 if (new URLSearchParams(location.search).has('selftest')) {
   runSelfTest();
 } else {
-  document.getElementById('app').textContent = '준비 중';
+  // Firebase 키가 비어 있으면 로컬 모드로 동작한다 (PRD 6.2)
+  state.backend = createLocalBackend();
+
+  // 저장된 데이터가 깨져 있으면 로컬 백엔드는 조용히 빈 상태로 시작한다.
+  // 선생님 눈에는 "메뉴가 이유 없이 사라진" 것으로 보이므로 반드시 알린다.
+  const raw = localStorage.getItem(CONFIG.localStorageKey);
+  if (raw) {
+    try { JSON.parse(raw); }
+    catch {
+      toast('저장된 자료를 읽지 못했어요. 메뉴를 다시 등록해 주세요.', { ms: 8000 });
+    }
+  }
+
+  for (const name of ['menus', 'ingredients', 'orders']) {
+    state.backend.subscribe(name, (docs) => { state[name] = docs; render(); });
+  }
+  state.backend.subscribe('settings', (docs) => {
+    state.settings = { ...CONFIG.defaults, ...(docs.find((d) => d.id === 'app') || {}) };
+    render();
+  });
+
+  // 지금 로컬인지 클라우드인지 상단바에 표시한다.
+  // Task 11에서 Firestore를 붙이면 '연결됨'으로 바뀐다.
+  document.getElementById('net-tag').textContent = '연습 모드';
+
+  setFontScale(localStorage.getItem(CONFIG.fontScaleKey) || CONFIG.defaults.fontScale);
+  for (const b of document.querySelectorAll('.font-switch button')) {
+    b.onclick = () => setFontScale(b.dataset.scale);
+  }
+  document.getElementById('btn-change-role').onclick = changeRole;
+
+  setRole(localStorage.getItem(CONFIG.roleKey) || null);
 }
 </script>
 </body>
