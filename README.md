@@ -32,12 +32,13 @@
 | 파일 | 하는 일 |
 |---|---|
 | `index.html` | 앱 전체. 화면·로직·설정(`CONFIG`)·자가 테스트가 모두 들어 있다 |
+| `logo.png` | 호출 화면 왼쪽 위 로고 (`CONFIG.logoSrc`) |
 | `firestore.rules` | Firestore 보안 규칙 |
 | `firebase.json` · `.firebaserc` | Firebase Hosting 배포 설정 |
 | `달보드레_카페_POS_PRD.md` | 요구사항 |
 | `달보드레_카페_POS_구현계획.md` | 태스크별 구현 계획 |
 
-`.md` 문서와 숨김 폴더는 배포되지 않습니다. 인터넷에는 `index.html`만 올라갑니다.
+`.md` 문서와 숨김 폴더는 배포되지 않습니다. 인터넷에는 `index.html`과 `logo.png`만 올라갑니다.
 
 ### 연습 모드로 띄우기
 
@@ -90,7 +91,7 @@ firebase login
 
 > `firebase.json`의 `ignore`를 고칠 때 주의하세요. `"**/.*"`만으로는 `.git/HEAD` 같은
 > 숨김 폴더 **안의** 파일이 걸러지지 않습니다. 그래서 `.git/**`처럼 폴더마다 명시해 두었습니다.
-> 배포 로그에 `found 1 files`가 아니라 더 큰 숫자가 나오면 멈추고 확인하세요.
+> 배포 로그에 `found 2 files`(`index.html`, `logo.png`)가 아니라 더 큰 숫자가 나오면 멈추고 확인하세요.
 
 ### 앱이 멀쩡한지 확인
 

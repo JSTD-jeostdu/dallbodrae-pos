@@ -434,13 +434,19 @@
      손님이 멀리서 보는 화면이다. 여기서는 글자 크기 3단계(--scale)를 곱하지 않는다 —
      이미 화면이 허락하는 최대치(vmin)까지 키워 두었고, 배율을 한 번 더 곱하면
      번호가 화면 밖으로 넘친다. */
+  /* 위: 로고 / 가운데: 지금 부르는 번호 / 아래: 제조 중 · 준비 완료 */
   .display-screen {
-    height: 100%; display: flex; flex-direction: column;
-    align-items: center; justify-content: center; gap: 10px; text-align: center;
+    height: 100%; display: grid; grid-template-rows: auto minmax(0, 1fr) auto; gap: 12px;
   }
+  .display-head { display: flex; align-items: center; min-height: 0; }
+  .display-logo { height: clamp(64px, 15vmin, 170px); width: auto; display: block; }
   .display-title {
     margin: 0; font-size: clamp(22px, 5vmin, 52px); font-weight: 900;
-    color: var(--brand); letter-spacing: .06em; cursor: default;
+    color: var(--brand); letter-spacing: .06em;
+  }
+  .display-center {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    gap: 8px; text-align: center; min-height: 0;
   }
   /* 손님 눈에 띄지 않게 흐려 두되, 선생님이 찾으면 보이고 누르면 또렷해진다 */
   .display-exit {
@@ -451,7 +457,7 @@
   }
   .display-exit:hover, .display-exit:focus-visible { opacity: 1; border-color: var(--line); background: var(--panel); }
   .display-no {
-    font-size: clamp(120px, 40vmin, 400px); font-weight: 900; line-height: .95;
+    font-size: clamp(100px, 30vmin, 340px); font-weight: 900; line-height: .95;
     color: var(--brand-dark); font-variant-numeric: tabular-nums;
   }
   .display-no.pop { animation: call-pop 1.4s ease-out; }
@@ -465,13 +471,30 @@
   }
   .display-line { margin: 0; font-size: clamp(18px, 4vmin, 40px); font-weight: 700; color: var(--ink); }
   .display-empty { margin: 0; font-size: clamp(20px, 4vmin, 40px); color: var(--muted); }
-  .display-prev { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
-  .display-prev-label { font-size: clamp(13px, 2vmin, 20px); color: var(--muted); }
-  .display-prev-no {
-    min-width: 2.2em; padding: 4px 12px; border-radius: 999px;
-    background: var(--panel); border: 2px solid var(--line); color: var(--muted);
-    font-size: clamp(16px, 3vmin, 30px); font-weight: 700; font-variant-numeric: tabular-nums;
+  .display-board { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+  .board-col {
+    background: var(--panel); border: 3px solid var(--line); border-radius: var(--radius);
+    padding: 12px 14px; min-height: clamp(90px, 16vmin, 170px);
   }
+  /* 두 구역을 색만으로 가르지 않는다 — 제목 글자와 아이콘이 함께 있다 */
+  .board-col h2 {
+    margin: 0 0 10px; font-size: clamp(16px, 3vmin, 30px); font-weight: 900;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .board-col.making h2 { color: var(--brand-dark); }
+  .board-col.done { border-color: var(--ok); }
+  .board-col.done h2 { color: var(--ok); }
+  .board-list { display: flex; flex-wrap: wrap; gap: 8px; }
+  .board-no {
+    min-width: 2.2em; padding: 4px 10px; border-radius: 12px; text-align: center;
+    background: var(--bg); border: 2px solid var(--line); color: var(--ink);
+    font-size: clamp(18px, 3.6vmin, 38px); font-weight: 900; font-variant-numeric: tabular-nums;
+  }
+  /* 방금 부른 번호 — 준비 완료 줄의 맨 끝에 가장 진하게 */
+  .board-no.latest { background: var(--ok); border-color: var(--ok); color: #fff; }
+  .board-more, .board-none { align-self: center; color: var(--muted); font-size: clamp(14px, 2.4vmin, 24px); }
+  /* 세로로 긴 화면(세워 둔 태블릿 등)에서는 두 구역을 위아래로 쌓는다 */
+  @media (max-width: 600px) { .display-board { grid-template-columns: 1fr; } }
   /* 첫 진입 안내 — 브라우저 자동재생 정책상 한 번 건드려야 소리가 난다 */
   .display-gate {
     position: fixed; inset: 0; z-index: 50; width: 100%;
@@ -543,7 +566,9 @@ const CONFIG = {
   photoMaxBytes: 300 * 1024,     // 이보다 크면 품질을 낮춰 재시도
   undoSeconds: 6,                // "완료" 되돌리기 가능 시간 (초)
   recentOrderCount: 12,          // 주문 화면 최근 주문 표시 개수
-  displayRecentCount: 4,         // 호출 화면에 함께 보여줄 직전 번호 개수
+  displayReadyCount: 10,         // 호출 화면 '준비 완료'에 남겨 둘 번호 개수 (넘치면 오래된 것부터 빠진다)
+  displayWaitingCount: 12,       // 호출 화면 '제조 중'에 보여줄 번호 개수 (넘치면 '외 N건')
+  logoSrc: 'logo.png',           // 호출 화면 왼쪽 위 로고. 비우면 카페 이름 글자로 대신한다
 
   localStorageKey: 'dallbodrae-local-db',
   roleKey: 'dallbodrae-role',
@@ -695,6 +720,21 @@ function recentCalls(orders, count) {
     .filter((o) => o.status === 'ready' && o.readyAt && !o.hiddenFromDisplay)
     .sort((a, b) => b.readyAt - a.readyAt)
     .slice(0, count);
+}
+
+// 호출 화면의 세 구역을 한 번에 정한다.
+// 준비 완료는 부른 순서대로(오래된 것 → 새것) 최대 readyMax개만 남긴다.
+// 새 번호가 들어오면 맨 앞(가장 오래전에 부른 번호)이 밀려난다.
+// 지금 부르는 번호도 준비 완료에 함께 둔다 — 잠깐 한눈판 손님이 옆에서 다시 찾을 수 있다.
+function displayBoard(orders, readyMax, waitingMax) {
+  const ready = recentCalls(orders, readyMax).reverse();
+  const waitingAll = waitingOrders(orders);
+  return {
+    current: ready[ready.length - 1] || null,
+    ready,
+    waiting: waitingAll.slice(0, waitingMax),
+    waitingMore: Math.max(0, waitingAll.length - waitingMax),
+  };
 }
 
 // 화면용 — 숫자를 그대로 쓴다. 손님과 학생이 번호표와 눈으로 맞춰야 한다.
@@ -2481,56 +2521,99 @@ function buildDisplayGate() {
 }
 
 function renderDisplayView(el) {
-  const [top, ...rest] = recentCalls(state.orders, CONFIG.displayRecentCount);
+  const board = displayBoard(state.orders, CONFIG.displayReadyCount, CONFIG.displayWaitingCount);
+  const top = board.current;
 
   const wrap = document.createElement('div');
   wrap.className = 'display-screen';
 
+  // ---- 위: 로고 ----
+  const head = document.createElement('div');
+  head.className = 'display-head';
   const title = document.createElement('h1');
   title.className = 'display-title';
   title.textContent = CONFIG.cafeName;
-  wrap.appendChild(title);
+  if (CONFIG.logoSrc) {
+    const logo = document.createElement('img');
+    logo.className = 'display-logo';
+    logo.src = CONFIG.logoSrc;
+    logo.alt = CONFIG.cafeName;
+    // 파일이 없거나 못 받아오면 카페 이름 글자로 대신한다
+    logo.onerror = () => logo.replaceWith(title);
+    head.appendChild(logo);
+  } else {
+    head.appendChild(title);
+  }
+  wrap.appendChild(head);
 
+  // ---- 가운데: 지금 부르는 번호 ----
+  const center = document.createElement('div');
+  center.className = 'display-center';
   if (!top) {
     const hint = document.createElement('p');
     hint.className = 'display-empty';
     hint.textContent = '아직 준비된 음료가 없어요.';
-    wrap.appendChild(hint);
+    center.appendChild(hint);
   } else {
     const no = document.createElement('div');
     // 연출을 시작할지는 onOrdersChanged가 정한다. 여기서는 따라 그리기만 한다.
     no.className = 'display-no' + (Date.now() < popUntil ? ' pop' : '');
     // 화면에는 숫자를 그대로 — 손님이 번호표와 눈으로 맞춰야 한다.
     no.textContent = top.orderNo;
-    wrap.appendChild(no);
+    center.appendChild(no);
 
     const line = document.createElement('p');
     line.className = 'display-line';
     // 소리를 못 듣는 손님에게는 이 줄이 안내의 전부다.
     line.setAttribute('aria-live', 'assertive');
     line.textContent = callText(state.settings.ttsText, top.orderNo);
-    wrap.appendChild(line);
-
-    if (rest.length) {
-      const prev = document.createElement('div');
-      prev.className = 'display-prev';
-      const label = document.createElement('span');
-      label.className = 'display-prev-label';
-      label.textContent = '직전 호출';
-      prev.appendChild(label);
-      for (const o of rest) {
-        const chip = document.createElement('span');
-        chip.className = 'display-prev-no';
-        chip.textContent = o.orderNo;
-        prev.appendChild(chip);
-      }
-      wrap.appendChild(prev);
-    }
+    center.appendChild(line);
   }
+  wrap.appendChild(center);
+
+  // ---- 아래: 제조 중 · 준비 완료 ----
+  const boardEl = document.createElement('div');
+  boardEl.className = 'display-board';
+  boardEl.append(
+    buildBoardCol('making', '☕ 제조 중', board.waiting, board.waitingMore, null),
+    buildBoardCol('done', '✅ 준비 완료', board.ready, 0, top),
+  );
+  wrap.appendChild(boardEl);
 
   el.appendChild(wrap);
   el.appendChild(buildDisplayExit());
   if (!displayReady) el.appendChild(buildDisplayGate());
+}
+
+function buildBoardCol(kind, heading, list, more, latest) {
+  const col = document.createElement('section');
+  col.className = `board-col ${kind}`;
+  const h = document.createElement('h2');
+  h.textContent = heading;
+  col.appendChild(h);
+
+  const ul = document.createElement('div');
+  ul.className = 'board-list';
+  if (list.length === 0) {
+    const none = document.createElement('span');
+    none.className = 'board-none';
+    none.textContent = '없음';
+    ul.appendChild(none);
+  }
+  for (const o of list) {
+    const chip = document.createElement('span');
+    chip.className = 'board-no' + (latest && o.id === latest.id ? ' latest' : '');
+    chip.textContent = o.orderNo;
+    ul.appendChild(chip);
+  }
+  if (more > 0) {
+    const m = document.createElement('span');
+    m.className = 'board-more';
+    m.textContent = `외 ${more}건`;
+    ul.appendChild(m);
+  }
+  col.appendChild(ul);
+  return col;
 }
 
 // 새 호출 감지 — 주문 구독이 바뀔 때마다 불린다.
@@ -2834,6 +2917,29 @@ test('호출 화면에서 숨긴 주문은 빼고 보여준다', () => {
     { id: 'b', status: 'ready', readyAt: 300, hiddenFromDisplay: true },
   ];
   eq(recentCalls(orders, 5).map((o) => o.id), ['a']);
+});
+
+test('준비 완료는 부른 순서대로 최대 개수만 남기고 오래된 번호부터 밀어낸다', () => {
+  // 11번째 호출이 들어오면 1번째 호출이 사라진다
+  const orders = Array.from({ length: 11 }, (_, i) => ({
+    id: `r${i + 1}`, orderNo: i + 1, status: 'ready', readyAt: (i + 1) * 100,
+  }));
+  const board = displayBoard(orders, 10, 12);
+  eq(board.ready.map((o) => o.orderNo), [2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+  eq(board.current.orderNo, 11, '가장 최근에 부른 번호가 가운데에 뜬다');
+});
+
+test('제조 중은 먼저 들어온 주문부터, 넘치면 남은 건수를 센다', () => {
+  const orders = [
+    { id: 'w3', orderNo: 3, status: 'waiting', createdAt: 300 },
+    { id: 'w1', orderNo: 1, status: 'waiting', createdAt: 100 },
+    { id: 'w2', orderNo: 2, status: 'waiting', createdAt: 200 },
+    { id: 'c',  orderNo: 9, status: 'cancelled', createdAt: 50 },
+  ];
+  const board = displayBoard(orders, 10, 2);
+  eq(board.waiting.map((o) => o.orderNo), [1, 2]);
+  eq(board.waitingMore, 1);
+  eq(board.current, null, '아직 부른 번호가 없다');
 });
 
 test('호출 문구의 {번호}를 바꾼다', () => {
