@@ -221,6 +221,18 @@
   .storage-info { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--line); }
   .storage-info p { color: var(--muted); font-size: calc(13px * var(--scale)); margin: 0; }
 
+  /* ---- 관리 화면 : 주문번호 초기화 (PRD 3.6.1) ---- */
+  .reset-block { margin-top: 20px; padding-top: 18px; border-top: 1px solid var(--line); }
+  .reset-block h3 { margin: 0 0 8px; font-size: calc(17px * var(--scale)); color: var(--ink); }
+  .reset-current { margin: 0 0 14px; font-size: calc(15px * var(--scale)); color: var(--muted); }
+  .reset-current b { color: var(--brand); font-size: calc(20px * var(--scale)); }
+  /* 글자까지 눌러도 켜지도록 label로 감싼다 — 작은 네모만 겨냥하지 않아도 된다 */
+  .check {
+    display: flex; align-items: center; gap: 10px; margin-bottom: 16px; cursor: pointer;
+    font-size: calc(15px * var(--scale)); min-height: 44px;
+  }
+  .check input { width: 24px; height: 24px; flex-shrink: 0; accent-color: var(--brand); }
+
   /* ---- 주문 화면 (PRD 3.1) ----
      AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
@@ -633,9 +645,11 @@ function isLate(order, now, lateMinutes) {
 
 // ---- 호출 (PRD 3.3) ----
 // 완료된 주문을 최신순으로. readyAt이 없는 옛 데이터는 줄을 세울 수 없으니 뺀다.
+// hiddenFromDisplay는 주문번호를 초기화하면서 호출 화면만 비운 것이다 (PRD 3.6.1).
+// 주문 자체는 남아 있으므로 판매 기록에는 그대로 잡힌다.
 function recentCalls(orders, count) {
   return orders
-    .filter((o) => o.status === 'ready' && o.readyAt)
+    .filter((o) => o.status === 'ready' && o.readyAt && !o.hiddenFromDisplay)
     .sort((a, b) => b.readyAt - a.readyAt)
     .slice(0, count);
 }
@@ -764,6 +778,12 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
       save(db);
     },
 
+    // 카운터는 구독 대상이 아니다 (바뀔 때마다 화면을 다시 그릴 이유가 없다).
+    // 관리 화면에서 '지금 번호'를 보여줄 때만 그때그때 읽는다.
+    getCounterSync(businessDate) {
+      return (load().counters || {})[businessDate] || 0;
+    },
+
     clearSync() {
       localStorage.removeItem(storageKey);
       notifyAll({});
@@ -777,6 +797,7 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
   api.bump = async (n, i, f) => api.bumpSync(n, i, f);
   api.issueOrderNo = async (bd) => api.issueOrderNoSync(bd);
   api.resetOrderNo = async (bd, v) => api.resetOrderNoSync(bd, v);
+  api.getCounter = async (bd) => api.getCounterSync(bd);
   api.clear = async () => api.clearSync();
   return api;
 }
@@ -1387,6 +1408,25 @@ function renderSettingsTab(body) {
         <input type="number" id="set-late" min="1" step="1">
       </label>
       <button class="btn primary" id="set-save">저장</button>
+
+      <div class="reset-block">
+        <h3>주문번호 초기화</h3>
+        <p class="tab-desc">
+          날이 바뀌면 저절로 1번부터 시작해요. 연습 주문을 지우고 시작하거나,
+          번호가 너무 커졌을 때 여기서 되돌립니다. 판매 기록은 지워지지 않아요.
+        </p>
+        <p class="reset-current">다음 손님은 <b id="reset-current">—</b>을 받아요</p>
+        <label class="field">
+          <span>몇 번부터 시작할까요?</span>
+          <input type="number" id="reset-start" value="1" min="1" step="1">
+        </label>
+        <label class="check">
+          <input type="checkbox" id="reset-clear-display" checked>
+          호출 화면의 최근 호출 목록도 비우기
+        </label>
+        <button class="btn danger" id="btn-reset-no">주문번호 다시 시작</button>
+      </div>
+
       <div class="storage-info">
         <p>저장 위치 — 모드: ${state.backend.mode === 'local' ? '로컬' : '클라우드'} / 경로: ${CONFIG.dataRoot}/${CONFIG.spaceId}</p>
       </div>
@@ -1403,6 +1443,60 @@ function renderSettingsTab(body) {
     await saveSettings({ pin, fontScale, lateMinutes });
     toast('설정을 저장했어요.');
   };
+
+  // 카운터는 구독 대상이 아니라 그때그때 읽는다.
+  // 다 읽기 전에 화면이 바뀔 수 있으므로, 붙어 있을 때만 적는다.
+  // 담아 둔 값은 '마지막으로 나간 번호'지만, 선생님이 궁금한 건 다음에 나갈 번호다.
+  // (100번부터 시작하라고 해 놓고 '지금 번호: 99번'이 보이면 안 된 줄 안다)
+  const currentEl = body.querySelector('#reset-current');
+  state.backend.getCounter(businessDateOf()).then((value) => {
+    if (currentEl.isConnected) currentEl.textContent = `${nextOrderNo(value)}번`;
+  });
+  body.querySelector('#btn-reset-no').onclick = resetOrderNoFlow;
+}
+
+// ---- 주문번호 초기화 (PRD 3.6.1) ----
+// 판정은 Task 2의 resetPlan이 한다. 여기서는 묻고, 되돌리고, 이력을 남긴다.
+async function resetOrderNoFlow() {
+  const businessDate = businessDateOf();
+  const startFrom = Number(document.getElementById('reset-start').value);
+  const clearDisplay = document.getElementById('reset-clear-display').checked;
+  const waiting = waitingOrders(state.orders.filter((o) => o.businessDate === businessDate));
+
+  const counterValue = await state.backend.getCounter(businessDate);
+  const plan = resetPlan(counterValue, startFrom, waiting.length);
+  if (!plan.ok) { toast(plan.message, { ms: 5000 }); return; }
+
+  // 대기 주문이 남아 있으면 같은 번호가 두 번 불릴 수 있다 — 한 번 더 확인받는다.
+  const ok = await confirmModal({
+    title: plan.needsConfirm ? '번호가 겹칠 수 있어요' : '주문번호를 되돌릴까요?',
+    msg: plan.message,
+    okText: '되돌리기',
+    okClass: plan.needsConfirm ? 'danger' : 'primary',
+  });
+  if (!ok) return;
+
+  await state.backend.resetOrderNo(businessDate, plan.newCounterValue);
+
+  // 나중에 "왜 3번이 두 개지?"에 답할 근거를 남긴다.
+  await state.backend.add('counterResets', {
+    businessDate,
+    beforeValue: counterValue,
+    startFrom,
+    waitingCount: waiting.length,
+    clearedDisplay: clearDisplay,
+    createdAt: Date.now(),
+  });
+
+  if (clearDisplay) {
+    // 호출 화면에서만 감춘다. 주문을 지우면 판매 기록까지 사라진다.
+    for (const o of state.orders.filter((x) => x.status === 'ready' && !x.hiddenFromDisplay)) {
+      await state.backend.set('orders', o.id, { hiddenFromDisplay: true });
+    }
+  }
+
+  toast(`주문번호를 ${startFrom}번부터 다시 시작합니다.`);
+  render();   // 카운터는 구독 대상이 아니라서 '지금 번호'가 저절로 바뀌지 않는다
 }
 
 // ---- 주문 화면 (PRD 3.1) ----
@@ -2484,6 +2578,14 @@ test('최근 호출을 최신 순으로 자른다', () => {
     { id: 'd', status: 'ready', readyAt: 200 },
   ];
   eq(recentCalls(orders, 2).map((o) => o.id), ['b', 'd']);
+});
+
+test('호출 화면에서 숨긴 주문은 빼고 보여준다', () => {
+  const orders = [
+    { id: 'a', status: 'ready', readyAt: 100 },
+    { id: 'b', status: 'ready', readyAt: 300, hiddenFromDisplay: true },
+  ];
+  eq(recentCalls(orders, 5).map((o) => o.id), ['a']);
 });
 
 test('호출 문구의 {번호}를 바꾼다', () => {
