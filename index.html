@@ -270,6 +270,47 @@
   }
   .check input { width: 24px; height: 24px; flex-shrink: 0; accent-color: var(--brand); }
 
+  /* ---- 관리 화면 : 재료 (PRD 3.4 · Task 13) ---- */
+  .ing-row .menu-price b { color: var(--ink); }
+  .badge.low { background: var(--warn); color: #fff; }
+  .shopping-card {
+    background: #fff8ec; border: 2px solid var(--warn); border-radius: var(--radius);
+    padding: 14px 16px; margin-bottom: 16px;
+  }
+  .shopping-card h3 { margin: 0 0 8px; font-size: calc(17px * var(--scale)); }
+  .shopping-card ul { margin: 0 0 12px; padding-left: 20px; }
+  .shopping-card li { font-size: calc(15px * var(--scale)); line-height: 1.8; }
+  .shopping-card li small { color: var(--muted); }
+  .shopping-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+  /* 메뉴 편집 창의 레시피 줄: [재료 고르기][양][단위][✕] */
+  .recipe-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+  .recipe-row { display: flex; align-items: center; gap: 8px; }
+  .recipe-row select { flex: 1; min-width: 0; }
+  .recipe-row input { width: 90px; }
+  .recipe-row select, .recipe-row input {
+    min-height: 44px; padding: 8px; border: 2px solid var(--line); border-radius: 10px;
+    font-size: calc(15px * var(--scale)); background: var(--panel);
+  }
+  .recipe-unit { width: 2.4em; color: var(--muted); font-size: calc(14px * var(--scale)); }
+  .recipe-row .icon-btn { flex-shrink: 0; }
+  .form-modal .field select {
+    min-height: 44px; padding: 8px 10px; border: 2px solid var(--line); border-radius: 10px;
+    font-size: calc(15px * var(--scale)); background: var(--panel);
+  }
+  /* 재료 부족 — 경고일 뿐 판매를 막지 않는다 (품절과 다르다). 색만이 아니라 글자로도 알린다 */
+  .tile-low {
+    position: absolute; top: 6px; right: 6px; padding: 3px 8px; border-radius: 999px;
+    background: var(--warn); color: #fff; font-size: calc(12px * var(--scale)); font-weight: 900;
+  }
+  /* 장볼 목록만 종이에 뽑는다 */
+  @media print {
+    body.print-shopping > *:not(#app) { display: none !important; }
+    body.print-shopping #app * { visibility: hidden; }
+    body.print-shopping .shopping-card, body.print-shopping .shopping-card * { visibility: visible; }
+    body.print-shopping .shopping-card { position: absolute; left: 0; top: 0; width: 100%; border: none; background: #fff; }
+    body.print-shopping .shopping-actions { display: none; }
+  }
+
   /* ---- 주문 화면 (PRD 3.1) ----
      AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
@@ -1240,6 +1281,87 @@ function confirmModal({ title, msg, okText = '확인', okClass = 'primary', canc
   });
 }
 
+// 간단한 입력 양식 창. 저장하면 값 객체, 취소하면 null.
+// fields: [{ id, label, type: 'text' | 'number' | 'select', value, options: [[값, 글자]], hint, min, step, placeholder }]
+// validate(values)가 문구를 돌려주면 창을 닫지 않고 그 문구를 보여준다.
+function formModal({ title, desc, fields, okText = '저장', validate }) {
+  return new Promise((resolve) => {
+    const back = document.createElement('div');
+    back.className = 'modal-back';
+    const modal = document.createElement('div');
+    modal.className = 'modal form-modal';
+    const h = document.createElement('h3');
+    h.textContent = title;
+    modal.appendChild(h);
+    if (desc) {
+      const d = document.createElement('p');
+      d.className = 'tab-desc';
+      d.textContent = desc;
+      modal.appendChild(d);
+    }
+    const inputs = {};
+    for (const f of fields) {
+      const label = document.createElement('label');
+      label.className = 'field';
+      const span = document.createElement('span');
+      span.textContent = f.label;
+      label.appendChild(span);
+      let input;
+      if (f.type === 'select') {
+        input = document.createElement('select');
+        for (const [v, t] of f.options) {
+          const o = document.createElement('option');
+          o.value = v;
+          o.textContent = t;
+          input.appendChild(o);
+        }
+      } else {
+        input = document.createElement('input');
+        input.type = f.type || 'text';
+        if (f.type === 'number') input.inputMode = 'decimal';
+        if (f.min !== undefined) input.min = f.min;
+        if (f.step !== undefined) input.step = f.step;
+        if (f.placeholder) input.placeholder = f.placeholder;
+      }
+      input.value = f.value ?? '';
+      label.appendChild(input);
+      if (f.hint) {
+        const hint = document.createElement('small');
+        hint.className = 'hint';
+        hint.textContent = f.hint;
+        label.appendChild(hint);
+      }
+      inputs[f.id] = input;
+      modal.appendChild(label);
+    }
+    const err = document.createElement('p');
+    err.className = 'modal-hint';
+    modal.appendChild(err);
+    const actions = document.createElement('div');
+    actions.className = 'modal-actions';
+    const cancel = document.createElement('button');
+    cancel.className = 'btn ghost';
+    cancel.textContent = '취소';
+    const ok = document.createElement('button');
+    ok.className = 'btn primary';
+    ok.textContent = okText;
+    actions.append(cancel, ok);
+    modal.appendChild(actions);
+    back.appendChild(modal);
+    document.body.appendChild(back);
+    inputs[fields[0].id]?.focus();
+
+    cancel.onclick = () => { back.remove(); resolve(null); };
+    ok.onclick = () => {
+      const values = Object.fromEntries(Object.entries(inputs).map(([k, el]) => [k, el.value.trim()]));
+      const msg = validate ? validate(values) : null;
+      if (msg) { err.textContent = msg; return; }
+      back.remove();
+      resolve(values);
+    };
+  });
+}
+
 // ===== 5. 화면 =====
 const state = {
   role: null,
@@ -1513,7 +1635,7 @@ function watchAdminIdle() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 }
 let pinInput = '';
-let adminTab = 'menu';   // 'menu' | 'staff' | 'settings'
+let adminTab = 'menu';   // 'menu' | 'ingredients' | 'staff' | 'settings'
 
 function renderPinGate(el) {
   el.innerHTML = `
@@ -1578,6 +1700,7 @@ function renderAdminTabs(el) {
     <div class="admin">
       <div class="admin-tabs" role="tablist">
         <button class="admin-tab" data-tab="menu">🍹 메뉴</button>
+        <button class="admin-tab" data-tab="ingredients">🥛 재료</button>
         <button class="admin-tab" data-tab="staff">🧑‍🍳 담당</button>
         <button class="admin-tab" data-tab="settings">⚙️ 설정</button>
       </div>
@@ -1590,7 +1713,8 @@ function renderAdminTabs(el) {
   }
 
   const body = el.querySelector('#admin-body');
-  if (adminTab === 'staff') renderStaffTab(body);
+  if (adminTab === 'ingredients') renderIngredientTab(body);
+  else if (adminTab === 'staff') renderStaffTab(body);
   else if (adminTab === 'settings') renderSettingsTab(body);
   else renderMenuTab(body);
 }
@@ -1643,7 +1767,8 @@ function renderMenuTab(body) {
     }
     const priceEl = document.createElement('div');
     priceEl.className = 'menu-price';
-    priceEl.textContent = `${(Number(m.price) || 0).toLocaleString('ko-KR')}원`;
+    const rc = (m.recipe || []).length;
+    priceEl.textContent = `${(Number(m.price) || 0).toLocaleString('ko-KR')}원 · ${rc ? `재료 ${rc}가지` : '재고 차감 안 함'}`;
     info.append(nameEl, priceEl);
     row.appendChild(info);
 
@@ -1739,6 +1864,12 @@ function openMenuModal(existing) {
         </div>
         <p class="modal-hint" id="mm-hint"></p>
       </div>
+      <div class="field">
+        <span>레시피 (1잔에 들어가는 재료)</span>
+        <div class="recipe-rows" id="mm-recipe"></div>
+        <div><button type="button" class="btn ghost small" id="mm-add-recipe">＋ 재료 넣기</button></div>
+        <small class="hint" id="mm-recipe-hint"></small>
+      </div>
       <div class="modal-actions">
         <button class="btn ghost" id="mm-cancel">취소</button>
         <button class="btn primary" id="mm-save">저장</button>
@@ -1760,6 +1891,68 @@ function openMenuModal(existing) {
   nameInput.value = existing?.name || '';
   priceInput.value = existing?.price ?? '';
   emojiInput.value = existing?.emoji || '☕';
+
+  // ---- 레시피 (Task 13) ----
+  // 비워 두면 이 메뉴는 재고를 건드리지 않는다 (점진 도입).
+  let recipe = (existing?.recipe || []).map((r) => ({ ...r }));
+  const recipeEl = back.querySelector('#mm-recipe');
+  const recipeHint = back.querySelector('#mm-recipe-hint');
+  const addRecipeBtn = back.querySelector('#mm-add-recipe');
+  const ings = sortedIngredients();
+  function drawRecipe() {
+    recipeEl.innerHTML = '';
+    recipe.forEach((r, i) => {
+      const row = document.createElement('div');
+      row.className = 'recipe-row';
+      const sel = document.createElement('select');
+      sel.setAttribute('aria-label', '재료');
+      const known = ings.some((g) => g.id === r.ingredientId);
+      if (!known) {
+        const o = document.createElement('option');
+        o.value = r.ingredientId || '';
+        o.textContent = '(지워진 재료)';
+        sel.appendChild(o);
+      }
+      for (const g of ings) {
+        const o = document.createElement('option');
+        o.value = g.id;
+        o.textContent = g.name;
+        sel.appendChild(o);
+      }
+      sel.value = r.ingredientId || '';
+      const qty = document.createElement('input');
+      qty.type = 'number';
+      qty.min = '0';
+      qty.step = 'any';
+      qty.inputMode = 'decimal';
+      qty.placeholder = '양';
+      qty.setAttribute('aria-label', '1잔에 쓰는 양');
+      qty.value = r.qty ?? '';
+      const unit = document.createElement('span');
+      unit.className = 'recipe-unit';
+      const unitOf = () => ings.find((g) => g.id === sel.value)?.unit || '';
+      unit.textContent = unitOf();
+      sel.onchange = () => { recipe[i].ingredientId = sel.value; unit.textContent = unitOf(); };
+      qty.oninput = () => { recipe[i].qty = qty.value; };
+      const del = document.createElement('button');
+      del.type = 'button';
+      del.className = 'icon-btn';
+      del.textContent = '✕';
+      del.setAttribute('aria-label', '이 재료 빼기');
+      del.onclick = () => { recipe.splice(i, 1); drawRecipe(); };
+      row.append(sel, qty, unit, del);
+      recipeEl.appendChild(row);
+    });
+    if (ings.length === 0) {
+      addRecipeBtn.disabled = true;
+      recipeHint.textContent = '관리 → 재료 탭에서 재료를 먼저 등록하면 레시피를 넣을 수 있어요. 비워 둬도 주문은 그대로 됩니다.';
+    } else {
+      addRecipeBtn.disabled = false;
+      recipeHint.textContent = recipe.length ? '' : '재료를 넣지 않으면 재고를 차감하지 않습니다. 나중에 채워도 됩니다.';
+    }
+  }
+  addRecipeBtn.onclick = () => { recipe.push({ ingredientId: ings[0]?.id, qty: '' }); drawRecipe(); };
+  drawRecipe();
 
   pickBtn.onclick = () => fileInput.click();
   cancelBtn.onclick = () => back.remove();
@@ -1810,14 +2003,26 @@ function openMenuModal(existing) {
       toast('사진 용량이 너무 커요. 다른 사진으로 다시 올려 주세요.', { ms: 5000 });
       return;
     }
+    // 레시피: 재료를 고르고 양을 적은 줄만 남기고, 같은 재료는 합친다
+    const merged = {};
+    for (const r of recipe) {
+      const q = Number(r.qty);
+      if (!r.ingredientId || !Number.isFinite(q) || q <= 0) continue;
+      merged[r.ingredientId] = (merged[r.ingredientId] || 0) + q;
+    }
+    if (recipe.some((r) => r.qty !== '' && r.qty !== undefined && !(Number(r.qty) > 0))) {
+      toast('레시피의 양은 0보다 큰 숫자로 입력해 주세요.');
+      return;
+    }
+    const cleanRecipe = Object.entries(merged).map(([ingredientId, qty]) => ({ ingredientId, qty }));
     saveBtn.disabled = true;
     try {
-      const patch = { name, price, emoji, photo };
+      const patch = { name, price, emoji, photo, recipe: cleanRecipe };
       if (isEdit) {
         await state.backend.set('menus', existing.id, patch);
       } else {
         const maxOrder = state.menus.reduce((mx, m) => Math.max(mx, Number(m.order) || 0), 0);
-        await state.backend.add('menus', { ...patch, order: maxOrder + 1, visible: true, soldOut: false, recipe: [] });
+        await state.backend.add('menus', { ...patch, order: maxOrder + 1, visible: true, soldOut: false });
       }
       back.remove();
       toast(isEdit ? '메뉴를 저장했어요.' : '메뉴를 추가했어요.');
@@ -1825,6 +2030,225 @@ function openMenuModal(existing) {
       saveBtn.disabled = false;
     }
   };
+}
+
+// ---- 재고 반영 (Task 13) ----
+// 재료 수량을 늘리고 줄이는 유일한 길. 기록(stockLogs)은 쓰기만 하고 구독하지 않는다 —
+// 판매마다 쌓이므로 모든 기기가 통째로 받으면 금방 무료 한도를 넘는다.
+// 기록 화면에서 필요한 기간만 불러온다.
+async function applyStock(delta, type, extra = {}) {
+  const known = new Set(state.ingredients.map((i) => i.id));
+  // 지워진 재료에 더하면 이름 없는 유령 재료 문서가 생긴다
+  const entries = Object.entries(delta).filter(([id, d]) => d && known.has(id));
+  if (entries.length === 0) return;
+  await Promise.all(entries.map(([id, d]) => state.backend.bump('ingredients', id, { current: d })));
+  await state.backend.add('stockLogs', {
+    type, delta: Object.fromEntries(entries), businessDate: businessDateOf(), createdAt: Date.now(), ...extra,
+  });
+}
+
+function fmtQty(n, unit) {
+  const v = Math.round((Number(n) || 0) * 100) / 100;
+  return `${v.toLocaleString('ko-KR')}${unit || ''}`;
+}
+
+function sortedIngredients() {
+  return [...state.ingredients].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
+// ---- 재료 탭 (PRD 3.4) ----
+function renderIngredientTab(body) {
+  body.innerHTML = `
+    <p class="tab-desc">
+      재료를 등록하고 메뉴마다 레시피를 넣으면, 주문할 때마다 재료가 저절로 줄어요.
+      레시피를 비워 둔 메뉴는 재고를 건드리지 않으니 천천히 하나씩 채워도 됩니다.
+    </p>
+    <div id="shopping"></div>
+    <div class="menu-tab-head"><button class="btn primary" id="btn-add-ing">＋ 재료 추가</button></div>
+    <div class="menu-list" id="ing-list"></div>`;
+  body.querySelector('#btn-add-ing').onclick = () => openIngredientModal();
+
+  const shop = shoppingList(state.ingredients);
+  if (shop.length) {
+    const card = document.createElement('section');
+    card.className = 'shopping-card';
+    const h = document.createElement('h3');
+    h.textContent = `🛒 장볼 목록 (${shop.length})`;
+    const ul = document.createElement('ul');
+    for (const x of shop) {
+      const li = document.createElement('li');
+      li.append(`${x.name} — ${fmtQty(x.shortage, x.unit)} 이상 `);
+      const sm = document.createElement('small');
+      sm.textContent = `(지금 ${fmtQty(x.current, x.unit)} · 기준 ${fmtQty(x.reorderPoint, x.unit)})`;
+      li.appendChild(sm);
+      ul.appendChild(li);
+    }
+    const act = document.createElement('div');
+    act.className = 'shopping-actions';
+    const copy = document.createElement('button');
+    copy.className = 'btn ghost small';
+    copy.textContent = '목록 복사';
+    copy.onclick = copyShoppingList;
+    const print = document.createElement('button');
+    print.className = 'btn ghost small';
+    print.textContent = '인쇄';
+    print.onclick = printShoppingList;
+    act.append(copy, print);
+    card.append(h, ul, act);
+    body.querySelector('#shopping').appendChild(card);
+  }
+
+  const listEl = body.querySelector('#ing-list');
+  const list = sortedIngredients();
+  if (list.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '등록된 재료가 없어요. 재고를 관리하지 않을 거라면 비워 둬도 괜찮아요.';
+    listEl.appendChild(p);
+    return;
+  }
+  for (const ing of list) {
+    const row = document.createElement('div');
+    row.className = 'menu-row ing-row';
+    const info = document.createElement('div');
+    info.className = 'menu-info';
+    const name = document.createElement('div');
+    name.className = 'menu-name';
+    name.textContent = ing.name;
+    const low = typeof ing.reorderPoint === 'number' && (ing.current || 0) <= ing.reorderPoint;
+    if (low) {
+      const b = document.createElement('span');
+      b.className = 'badge low';
+      b.textContent = '부족';
+      name.appendChild(b);
+    }
+    const qty = document.createElement('div');
+    qty.className = 'menu-price';
+    const cur = document.createElement('b');
+    cur.textContent = `지금 ${fmtQty(ing.current, ing.unit)}`;
+    qty.appendChild(cur);
+    qty.append(typeof ing.reorderPoint === 'number'
+      ? ` · 기준 ${fmtQty(ing.reorderPoint, ing.unit)}`
+      : ' · 장볼 목록에 넣지 않음');
+    info.append(name, qty);
+
+    const actions = document.createElement('div');
+    actions.className = 'menu-actions';
+    const restock = document.createElement('button');
+    restock.className = 'btn primary small';
+    restock.textContent = '입고';
+    restock.onclick = () => restockFlow(ing);
+    const edit = document.createElement('button');
+    edit.className = 'btn ghost small';
+    edit.textContent = '수정';
+    edit.onclick = () => openIngredientModal(ing);
+    const del = document.createElement('button');
+    del.className = 'btn danger small';
+    del.textContent = '삭제';
+    del.onclick = () => deleteIngredient(ing);
+    actions.append(restock, edit, del);
+    row.append(info, actions);
+    listEl.appendChild(row);
+  }
+}
+
+const UNIT_OPTIONS = [['ml', 'ml (우유·시럽)'], ['g', 'g (원두·가루)'], ['개', '개 (컵·빨대)']];
+
+function parseQty(v, { allowEmpty = false } = {}) {
+  if (v === '' && allowEmpty) return null;
+  const n = Number(v);
+  return Number.isFinite(n) && n >= 0 ? n : NaN;
+}
+
+async function openIngredientModal(existing) {
+  const values = await formModal({
+    title: existing ? '재료 수정' : '재료 추가',
+    fields: [
+      { id: 'name', label: '이름', value: existing?.name, placeholder: '예: 우유' },
+      { id: 'unit', label: '단위', type: 'select', options: UNIT_OPTIONS, value: existing?.unit || 'ml' },
+      { id: 'current', label: '지금 있는 양', type: 'number', min: 0, step: 'any', value: existing?.current ?? '',
+        hint: existing ? '실제로 세어 본 양으로 고치면 재고가 그 값으로 맞춰져요.' : '' },
+      { id: 'reorderPoint', label: '장볼 기준 (이만큼 이하로 떨어지면 장볼 목록에)', type: 'number', min: 0, step: 'any',
+        value: existing?.reorderPoint ?? '', hint: '비워 두면 장볼 목록에 넣지 않아요.' },
+    ],
+    validate: (v) => {
+      if (!v.name) return '재료 이름을 입력해 주세요.';
+      if (Number.isNaN(parseQty(v.current))) return '지금 있는 양을 0 이상의 숫자로 입력해 주세요.';
+      if (Number.isNaN(parseQty(v.reorderPoint, { allowEmpty: true }))) return '장볼 기준은 숫자로 입력하거나 비워 주세요.';
+      const dup = state.ingredients.find((i) => i.name === v.name && i.id !== existing?.id);
+      if (dup) return '같은 이름의 재료가 이미 있어요.';
+      return null;
+    },
+  });
+  if (!values) return;
+  const current = parseQty(values.current);
+  const patch = { name: values.name, unit: values.unit, current, reorderPoint: parseQty(values.reorderPoint, { allowEmpty: true }) };
+  if (existing) {
+    await state.backend.set('ingredients', existing.id, patch);
+    const diff = current - (Number(existing.current) || 0);
+    if (diff) {
+      await state.backend.add('stockLogs', {
+        type: 'adjust', delta: { [existing.id]: diff }, businessDate: businessDateOf(), createdAt: Date.now(),
+      });
+    }
+    toast('재료를 저장했어요.');
+  } else {
+    await state.backend.add('ingredients', { ...patch, createdAt: Date.now() });
+    toast('재료를 추가했어요.');
+  }
+}
+
+async function restockFlow(ing) {
+  const values = await formModal({
+    title: `${ing.name} 입고`,
+    desc: `지금 ${fmtQty(ing.current, ing.unit)} 있어요. 새로 사 온 양만 적어 주세요.`,
+    okText: '입고',
+    fields: [{ id: 'qty', label: `들어온 양 (${ing.unit})`, type: 'number', min: 0, step: 'any' }],
+    validate: (v) => (parseQty(v.qty) > 0 ? null : '0보다 큰 숫자로 입력해 주세요.'),
+  });
+  if (!values) return;
+  const n = parseQty(values.qty);
+  await applyStock({ [ing.id]: n }, 'restock');
+  toast(`${ing.name} ${fmtQty(n, ing.unit)}을 입고했어요.`);
+}
+
+async function deleteIngredient(ing) {
+  const users = state.menus.filter((m) => (m.recipe || []).some((r) => r.ingredientId === ing.id));
+  const ok = await confirmModal({
+    title: `${ing.name}을(를) 삭제할까요?`,
+    msg: users.length
+      ? `${users.map((m) => m.name).join(', ')} 레시피에서 쓰고 있어요.\n삭제하면 그 레시피에서도 빠집니다.`
+      : '삭제하면 되돌릴 수 없어요.',
+    okText: '삭제', okClass: 'danger', cancelText: '취소',
+  });
+  if (!ok) return;
+  for (const m of users) {
+    await state.backend.set('menus', m.id, { recipe: m.recipe.filter((r) => r.ingredientId !== ing.id) });
+  }
+  await state.backend.remove('ingredients', ing.id);
+  toast('재료를 삭제했어요.');
+}
+
+function shoppingText() {
+  return shoppingList(state.ingredients)
+    .map((x) => `${x.name} — ${fmtQty(x.shortage, x.unit)} 이상 (지금 ${fmtQty(x.current, x.unit)})`)
+    .join('\n');
+}
+
+async function copyShoppingList() {
+  try {
+    await navigator.clipboard.writeText(`[${CONFIG.cafeName} 장볼 목록]\n${shoppingText()}`);
+    toast('장볼 목록을 복사했어요. 메신저에 붙여넣으면 됩니다.');
+  } catch {
+    toast('복사하지 못했어요. 인쇄 버튼을 써 주세요.', { ms: 5000 });
+  }
+}
+
+function printShoppingList() {
+  document.body.classList.add('print-shopping');
+  const done = () => { document.body.classList.remove('print-shopping'); window.removeEventListener('afterprint', done); };
+  window.addEventListener('afterprint', done);
+  window.print();
 }
 
 // ---- 담당 탭 ----
@@ -2020,6 +2444,17 @@ function buildMenuTile(menu) {
   nameEl.className = 'tile-name';
   nameEl.textContent = menu.name || '';
   tile.appendChild(nameEl);
+
+  // 재료 부족: 경고만 한다. 판매를 막는 것은 품절 토글뿐이다.
+  if (!menu.soldOut) {
+    const ingMap = Object.fromEntries(state.ingredients.map((i) => [i.id, i]));
+    if (menuLowStock(menu, ingMap)) {
+      const low = document.createElement('span');
+      low.className = 'tile-low';
+      low.textContent = '재료 부족';
+      tile.appendChild(low);
+    }
+  }
 
   // 품절: 색으로만 구분하지 않는다 — 흐림(.soldout) + 화면을 덮는 큰 ✕
   if (menu.soldOut) {
@@ -2430,9 +2865,15 @@ async function submitOrder() {
   try {
     const orderNo = await state.backend.issueOrderNo(businessDate);   // 트랜잭션 — 실패할 수 있다
     const staff = state.settings.todayStaff || {};
+    // 재료는 주문할 때 차감한다. 차감한 양을 주문에 함께 적어 두어야 취소·되살리기에서
+    // 정확히 그만큼 되돌릴 수 있다 (주문 뒤에 레시피가 바뀌어도 어긋나지 않는다).
+    const menuMap = Object.fromEntries(state.menus.map((m) => [m.id, m]));
+    const known = new Set(state.ingredients.map((i) => i.id));
+    const delta = Object.fromEntries(Object.entries(stockDelta(cart, menuMap)).filter(([id]) => known.has(id)));
     const orderId = await state.backend.add('orders', {
       orderNo,
       businessDate,
+      stockDelta: delta,
       items: cart,
       total: cartTotal(cart),
       status: 'waiting',
@@ -2443,6 +2884,10 @@ async function submitOrder() {
     submitting = false;
     cart = [];   // 주문이 안전하게 저장된 뒤에만 장바구니를 비운다
     showOrderNumber(orderNo);
+    // 재고 반영이 실패해도 주문은 이미 들어갔다 — 번호를 못 받은 것처럼 안내하면 안 된다
+    applyStock(delta, 'sale', { orderId, orderNo }).catch(() => {
+      toast('재료 수량을 줄이지 못했어요. 관리 → 재료에서 확인해 주세요.', { ms: 6000 });
+    });
     return orderId;
   } catch (err) {
     // 발번이 실패하면 장바구니를 그대로 두어 다시 시도할 수 있게 한다.
