@@ -711,14 +711,39 @@ function isLate(order, now, lateMinutes) {
   return now - order.createdAt > lateMinutes * 60 * 1000;
 }
 
+// ---- 주문 상태 전이 (Task 11.5) ----
+// 주문은 제조 중 → 준비 완료 → 수령 완료로 흐르고, 앞의 두 단계에서 취소될 수 있다.
+//   status        'waiting' | 'ready' | 'pickedUp' | 'cancelled'
+//   readyAt       완료한 시각. 다시 호출해도 바뀌지 않는다 (판매 기록의 제조 시간 계산용)
+//   calledAt      마지막으로 부른 시각. 없으면 readyAt을 쓴다 (이 필드가 생기기 전 주문)
+//   cancelledFrom 취소 직전 단계 — 되살릴 때 돌아갈 곳
+// 모든 화면이 이 함수로만 상태를 바꾼다. 그래야 필드를 빠뜨리는 화면이 생기지 않는다.
+function orderPatch(action, order, now) {
+  switch (action) {
+    case 'complete':     return { status: 'ready', readyAt: now, calledAt: now };
+    // 잘못 누른 완료다 — 부른 적 없는 것으로 되돌려야 호출 화면이 직전 번호로 돌아간다
+    case 'backToMaking': return { status: 'waiting', readyAt: null, calledAt: null };
+    case 'recall':       return { calledAt: now };
+    case 'pickUp':       return { status: 'pickedUp', pickedUpAt: now };
+    case 'unPickUp':     return { status: 'ready', pickedUpAt: null };
+    case 'cancel':       return { status: 'cancelled', cancelledAt: now, cancelledFrom: order.status };
+    case 'restore':      return { status: order.cancelledFrom || 'waiting', cancelledAt: null, cancelledFrom: null };
+    default: throw new Error(`알 수 없는 주문 동작: ${action}`);
+  }
+}
+
+function callTime(order) {
+  return order.calledAt || order.readyAt || 0;
+}
+
 // ---- 호출 (PRD 3.3) ----
-// 완료된 주문을 최신순으로. readyAt이 없는 옛 데이터는 줄을 세울 수 없으니 뺀다.
+// 아직 손님이 가져가지 않은 완료 주문을, 마지막으로 부른 시각의 최신순으로.
 // hiddenFromDisplay는 주문번호를 초기화하면서 호출 화면만 비운 것이다 (PRD 3.6.1).
 // 주문 자체는 남아 있으므로 판매 기록에는 그대로 잡힌다.
 function recentCalls(orders, count) {
   return orders
-    .filter((o) => o.status === 'ready' && o.readyAt && !o.hiddenFromDisplay)
-    .sort((a, b) => b.readyAt - a.readyAt)
+    .filter((o) => o.status === 'ready' && callTime(o) && !o.hiddenFromDisplay)
+    .sort((a, b) => callTime(b) - callTime(a))
     .slice(0, count);
 }
 
@@ -726,14 +751,39 @@ function recentCalls(orders, count) {
 // 준비 완료는 부른 순서대로(오래된 것 → 새것) 최대 readyMax개만 남긴다.
 // 새 번호가 들어오면 맨 앞(가장 오래전에 부른 번호)이 밀려난다.
 // 지금 부르는 번호도 준비 완료에 함께 둔다 — 잠깐 한눈판 손님이 옆에서 다시 찾을 수 있다.
+//
+// 가운데(current)는 "마지막으로 부른 주문"이 아직 준비 완료일 때만 채운다.
+// 그 손님이 가져갔거나 취소됐으면 비운다 — 예전 번호가 소리 없이 다시 크게 뜨면
+// 손님이 자기 번호를 또 부른 줄 안다.
 function displayBoard(orders, readyMax, waitingMax) {
   const ready = recentCalls(orders, readyMax).reverse();
   const waitingAll = waitingOrders(orders);
+  let last = null;
+  for (const o of orders) {
+    if (!callTime(o) || o.hiddenFromDisplay || o.status === 'waiting') continue;
+    if (!last || callTime(o) > callTime(last)) last = o;
+  }
   return {
-    current: ready[ready.length - 1] || null,
+    current: last && last.status === 'ready' ? last : null,
     ready,
     waiting: waitingAll.slice(0, waitingMax),
     waitingMore: Math.max(0, waitingAll.length - waitingMax),
+  };
+}
+
+// ---- 매니저 보드 (Task 11.5) ----
+// 끝나지 않은 주문(제조 중 · 준비 완료)은 날짜와 상관없이 모두 보여준다 — 어제 처리 못 한
+// 주문이 조용히 사라지면 안 된다. 끝난 주문(수령 · 취소)은 오늘 것만, 최신이 위.
+function managerBoard(orders, businessDate) {
+  const today = (o) => o.businessDate === businessDate;
+  return {
+    waiting: waitingOrders(orders),
+    // 먼저 부른 것부터 — 오래 기다린 손님이 위에 온다
+    ready: orders.filter((o) => o.status === 'ready').sort((a, b) => callTime(a) - callTime(b)),
+    pickedUp: orders.filter((o) => o.status === 'pickedUp' && today(o))
+      .sort((a, b) => (b.pickedUpAt || 0) - (a.pickedUpAt || 0)),
+    cancelled: orders.filter((o) => o.status === 'cancelled' && today(o))
+      .sort((a, b) => (b.cancelledAt || 0) - (a.cancelledAt || 0)),
   };
 }
 
@@ -2981,6 +3031,98 @@ test('음성 문구는 번호를 한글 수사로 바꾼다', () => {
   eq(speechText('{번호}번 손님, 음료 나왔습니다.', 25),
      '이십오번 손님, 음료 나왔습니다.');
   eq(speechText('음료 나왔습니다.', 3), '음료 나왔습니다.');
+});
+
+// ---- 주문 상태 전이 (Task 11.5) ----
+test('완료하면 준비 완료가 되고 완료 시각과 부른 시각이 적힌다', () => {
+  eq(orderPatch('complete', { status: 'waiting' }, 500),
+     { status: 'ready', readyAt: 500, calledAt: 500 });
+});
+
+test('제조로 되돌리면 두 시각을 모두 지운다', () => {
+  eq(orderPatch('backToMaking', { status: 'ready', readyAt: 500, calledAt: 500 }, 900),
+     { status: 'waiting', readyAt: null, calledAt: null });
+});
+
+test('다시 호출은 부른 시각만 바꾸고 완료 시각은 그대로 둔다', () => {
+  eq(orderPatch('recall', { status: 'ready', readyAt: 500, calledAt: 500 }, 900),
+     { calledAt: 900 }, '완료 시각은 판매 기록의 제조 시간 계산에 쓴다');
+});
+
+test('수령과 수령 되돌리기', () => {
+  eq(orderPatch('pickUp', { status: 'ready' }, 900), { status: 'pickedUp', pickedUpAt: 900 });
+  eq(orderPatch('unPickUp', { status: 'pickedUp', pickedUpAt: 900 }, 950), { status: 'ready', pickedUpAt: null });
+});
+
+test('취소하면 원래 단계를 기억하고, 되살리면 그 단계로 돌아간다', () => {
+  eq(orderPatch('cancel', { status: 'ready' }, 900),
+     { status: 'cancelled', cancelledAt: 900, cancelledFrom: 'ready' });
+  eq(orderPatch('restore', { status: 'cancelled', cancelledFrom: 'ready' }, 950),
+     { status: 'ready', cancelledAt: null, cancelledFrom: null });
+  eq(orderPatch('restore', { status: 'cancelled' }, 950).status, 'waiting', '원래 단계를 모르면 제조 중으로');
+});
+
+// ---- 호출 화면과 수령 · 취소 · 다시 호출 ----
+test('다시 부른 번호는 준비 완료 맨 끝으로 가고 가운데에 뜬다', () => {
+  const orders = [
+    { id: 'a', orderNo: 1, status: 'ready', readyAt: 100, calledAt: 900 },   // 다시 호출함
+    { id: 'b', orderNo: 2, status: 'ready', readyAt: 200 },
+    { id: 'c', orderNo: 3, status: 'ready', readyAt: 300 },
+  ];
+  const board = displayBoard(orders, 10, 12);
+  eq(board.ready.map((o) => o.orderNo), [2, 3, 1]);
+  eq(board.current.orderNo, 1);
+});
+
+test('마지막으로 부른 번호를 가져가면 가운데를 비우고 목록에서도 뺀다', () => {
+  const orders = [
+    { id: 'a', orderNo: 1, status: 'ready',    readyAt: 100 },
+    { id: 'b', orderNo: 2, status: 'pickedUp', readyAt: 200, pickedUpAt: 250 },
+  ];
+  const board = displayBoard(orders, 10, 12);
+  eq(board.current, null, '이미 불렀던 예전 번호가 소리 없이 다시 크게 뜨면 헷갈린다');
+  eq(board.ready.map((o) => o.orderNo), [1]);
+});
+
+test('취소된 번호는 호출 화면 어디에도 없다', () => {
+  const orders = [
+    { id: 'a', orderNo: 1, status: 'ready',     readyAt: 100 },
+    { id: 'b', orderNo: 2, status: 'cancelled', readyAt: 200, cancelledFrom: 'ready' },
+    { id: 'c', orderNo: 3, status: 'cancelled', createdAt: 50, cancelledFrom: 'waiting' },
+  ];
+  const board = displayBoard(orders, 10, 12);
+  eq(board.current, null);
+  eq(board.ready.map((o) => o.orderNo), [1]);
+  eq(board.waiting, []);
+});
+
+test('제조로 되돌린 번호는 부른 적 없는 것으로 보고 직전 번호가 가운데에 남는다', () => {
+  const orders = [
+    { id: 'a', orderNo: 1, status: 'ready',   readyAt: 100 },
+    { id: 'b', orderNo: 2, status: 'waiting', readyAt: null, calledAt: null, createdAt: 10 },
+  ];
+  eq(displayBoard(orders, 10, 12).current.orderNo, 1);
+});
+
+// ---- 매니저 보드 ----
+test('매니저 보드는 네 열로 나누고, 수령·취소는 오늘 것만 최신이 위로 온다', () => {
+  const today = '2026-09-21', yesterday = '2026-09-20';
+  const orders = [
+    { id: 'w2', status: 'waiting',   businessDate: today, createdAt: 200 },
+    { id: 'w1', status: 'waiting',   businessDate: yesterday, createdAt: 100 },
+    { id: 'r2', status: 'ready',     businessDate: today, readyAt: 300, calledAt: 700 },
+    { id: 'r1', status: 'ready',     businessDate: today, readyAt: 400 },
+    { id: 'p1', status: 'pickedUp',  businessDate: today, pickedUpAt: 500 },
+    { id: 'p2', status: 'pickedUp',  businessDate: today, pickedUpAt: 600 },
+    { id: 'p0', status: 'pickedUp',  businessDate: yesterday, pickedUpAt: 50 },
+    { id: 'c1', status: 'cancelled', businessDate: today, cancelledAt: 800 },
+    { id: 'c0', status: 'cancelled', businessDate: yesterday, cancelledAt: 90 },
+  ];
+  const b = managerBoard(orders, today);
+  eq(b.waiting.map((o) => o.id), ['w1', 'w2'], '끝나지 않은 주문은 날짜와 상관없이 오래된 것부터');
+  eq(b.ready.map((o) => o.id), ['r1', 'r2'], '먼저 부른 것부터 — 오래 기다린 손님이 위');
+  eq(b.pickedUp.map((o) => o.id), ['p2', 'p1']);
+  eq(b.cancelled.map((o) => o.id), ['c1']);
 });
 
 // ===== 7. 시작 =====
