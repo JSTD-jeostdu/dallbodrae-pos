@@ -893,6 +893,56 @@ function speechText(template, orderNo) {
   return String(template).split('{번호}').join(sinoKorean(orderNo));
 }
 
+// ---- 재료 차감 (PRD 3.4 · Task 12) ----
+// 레시피가 비어 있으면 차감하지 않는다. 이게 "점진 도입"의 핵심이다 —
+// 선생님이 레시피를 채우기 전까지 재고 기능은 조용히 꺼져 있다.
+function stockDelta(items, menuMap) {
+  const delta = {};
+  for (const item of items) {
+    const menu = menuMap[item.menuId];
+    if (!menu || !Array.isArray(menu.recipe) || menu.recipe.length === 0) continue;
+    for (const r of menu.recipe) {
+      delta[r.ingredientId] = (delta[r.ingredientId] || 0) - r.qty * item.qty;
+    }
+  }
+  return delta;
+}
+
+function invertDelta(delta) {
+  return Object.fromEntries(Object.entries(delta).map(([k, v]) => [k, -v]));
+}
+
+// 주문 상태가 바뀔 때 재고에 더할 양.
+// 주문할 때 차감한 양(order.stockDelta)을 그대로 되돌리거나 다시 뺀다 — 현재 레시피로
+// 다시 계산하면, 주문 뒤에 레시피를 고쳤을 때 복구량이 어긋난다.
+function stockEffect(action, order) {
+  const d = order.stockDelta || {};
+  if (action === 'cancel') return invertDelta(d);
+  if (action === 'restore') return { ...d };
+  return {};
+}
+
+// ---- 장볼 목록 ----
+// 기준점을 정하지 않은 재료는 "관리하지 않겠다"는 뜻으로 본다.
+function shoppingList(ingredients) {
+  return ingredients
+    .filter((i) => typeof i.reorderPoint === 'number' && (i.current || 0) <= i.reorderPoint)
+    .map((i) => ({
+      id: i.id, name: i.name, unit: i.unit,
+      current: i.current || 0,
+      reorderPoint: i.reorderPoint,
+      shortage: i.reorderPoint - (i.current || 0),
+    }));
+}
+
+function menuLowStock(menu, ingredientMap) {
+  if (!Array.isArray(menu.recipe) || menu.recipe.length === 0) return false;
+  return menu.recipe.some((r) => {
+    const ing = ingredientMap[r.ingredientId];
+    return ing && typeof ing.reorderPoint === 'number' && (ing.current || 0) <= ing.reorderPoint;
+  });
+}
+
 // ===== 3. 백엔드 어댑터 =====
 // 로컬 모드와 Firestore 모드가 아래 메서드를 똑같이 제공한다.
 //   subscribe / add / set / remove / issueOrderNo / resetOrderNo / bump
@@ -3473,6 +3523,71 @@ test('매니저 보드는 네 열로 나누고, 수령·취소는 오늘 것만 
   eq(b.ready.map((o) => o.id), ['r1', 'r2'], '먼저 부른 것부터 — 오래 기다린 손님이 위');
   eq(b.pickedUp.map((o) => o.id), ['p2', 'p1']);
   eq(b.cancelled.map((o) => o.id), ['c1']);
+});
+
+// ---- 재료 차감 (Task 12) ----
+const MENUS_FOR_TEST = {
+  latte: { id: 'latte', name: '라떼', recipe: [
+    { ingredientId: 'milk', qty: 150 },
+    { ingredientId: 'bean', qty: 18 },
+    { ingredientId: 'cup',  qty: 1 },
+  ]},
+  ade: { id: 'ade', name: '에이드', recipe: [] },   // 레시피 미등록
+};
+
+test('레시피대로 수량만큼 차감한다', () => {
+  eq(stockDelta([{ menuId: 'latte', qty: 2 }], MENUS_FOR_TEST),
+     { milk: -300, bean: -36, cup: -2 });
+});
+
+test('레시피가 비어 있으면 아무것도 차감하지 않는다', () => {
+  eq(stockDelta([{ menuId: 'ade', qty: 3 }], MENUS_FOR_TEST), {});
+});
+
+test('없는 메뉴는 건너뛴다', () => {
+  eq(stockDelta([{ menuId: 'deleted', qty: 1 }], MENUS_FOR_TEST), {});
+});
+
+test('여러 메뉴가 같은 재료를 쓰면 합산한다', () => {
+  const menus = {
+    a: { recipe: [{ ingredientId: 'cup', qty: 1 }] },
+    b: { recipe: [{ ingredientId: 'cup', qty: 1 }] },
+  };
+  eq(stockDelta([{ menuId: 'a', qty: 2 }, { menuId: 'b', qty: 3 }], menus), { cup: -5 });
+});
+
+test('취소하면 부호가 뒤집힌다', () => {
+  eq(invertDelta({ milk: -300, cup: -2 }), { milk: 300, cup: 2 });
+});
+
+test('취소·되살리기는 주문에 적어 둔 차감량만큼 되돌리고 다시 뺀다', () => {
+  const order = { status: 'ready', stockDelta: { milk: -300, cup: -2 } };
+  eq(stockEffect('cancel', order), { milk: 300, cup: 2 });
+  eq(stockEffect('restore', { ...order, status: 'cancelled' }), { milk: -300, cup: -2 });
+  eq(stockEffect('pickUp', order), {}, '취소·되살리기가 아니면 재고는 그대로');
+  eq(stockEffect('cancel', { status: 'waiting' }), {}, '차감 기록이 없는 옛 주문은 건드리지 않는다');
+});
+
+// ---- 장볼 목록 ----
+test('기준점 이하인 재료만 부족한 만큼과 함께 모은다', () => {
+  const ing = [
+    { id: 'milk', name: '우유', unit: 'ml', current: 200,  reorderPoint: 1000 },
+    { id: 'bean', name: '원두', unit: 'g',  current: 900,  reorderPoint: 500 },
+    { id: 'cup',  name: '컵',   unit: '개', current: 10,   reorderPoint: 10 },
+  ];
+  const list = shoppingList(ing);
+  eq(list.map((x) => x.id), ['milk', 'cup'], '기준점과 같아도 포함한다');
+  eq(list[0].shortage, 800);
+});
+
+test('기준점이 없는 재료는 장볼 목록에 넣지 않는다', () => {
+  eq(shoppingList([{ id: 'x', name: '빨대', current: 0 }]).length, 0);
+});
+
+test('재료가 부족한 메뉴를 알아낸다', () => {
+  const ingMap = { milk: { current: 100, reorderPoint: 1000 } };
+  eq(menuLowStock({ recipe: [{ ingredientId: 'milk', qty: 150 }] }, ingMap), true);
+  eq(menuLowStock({ recipe: [] }, ingMap), false, '레시피가 없으면 경고하지 않는다');
 });
 
 // ===== 7. 시작 =====
