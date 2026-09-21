@@ -106,6 +106,43 @@
   .role-grid button small { color: var(--muted); font-size: calc(14px * var(--scale)); font-weight: 400; }
   .role-grid button { font-size: calc(22px * var(--scale)); font-weight: 900; }
 
+  /* ---- 사용법 안내 (선생님용) ----
+     처음 앱을 켠 선생님이 학생 앞에 서기 전에 혼자 읽고 준비할 수 있어야 한다.
+     그래서 역할 선택 화면에서 바로 닿고, 읽는 중에는 다른 것이 끼어들지 않는다. */
+  .guide { max-width: 720px; margin: 0 auto; padding-bottom: 32px; }
+  .guide-head { display: flex; align-items: center; gap: 12px; margin-bottom: 6px; }
+  .guide-head h2 { margin: 0; flex: 1; font-size: calc(24px * var(--scale)); color: var(--brand); }
+  .guide-lead { color: var(--muted); font-size: calc(15px * var(--scale)); line-height: 1.7; margin: 0 0 20px; }
+  .guide section { margin-bottom: 16px; }
+  .guide h3 {
+    margin: 0 0 10px; font-size: calc(18px * var(--scale)); color: var(--ink);
+    display: flex; align-items: center; gap: 8px;
+  }
+  .guide p, .guide li { font-size: calc(15px * var(--scale)); line-height: 1.75; color: var(--ink); }
+  .guide p { margin: 0 0 10px; }
+  .guide ol, .guide ul { margin: 0; padding-left: 22px; }
+  .guide li { margin-bottom: 8px; }
+  .guide li:last-child { margin-bottom: 0; }
+  .guide b { color: var(--brand-dark); }
+  .guide-table { width: 100%; border-collapse: collapse; }
+  .guide-table th, .guide-table td {
+    text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--line);
+    font-size: calc(15px * var(--scale));
+  }
+  .guide-table th { color: var(--muted); font-weight: 700; width: 38%; }
+  .guide-table tr:last-child td, .guide-table tr:last-child th { border-bottom: none; }
+  /* 놓치면 "소리가 안 나요"로 돌아오는 항목은 따로 세운다 */
+  .guide-note {
+    background: #fff8ec; border: 2px solid var(--warn); border-radius: var(--radius);
+    padding: 14px 16px; margin: 0;
+  }
+  .guide-note p:last-child { margin-bottom: 0; }
+  .guide-open {
+    display: block; margin: 8px auto 0; background: none; color: var(--muted);
+    font-size: calc(15px * var(--scale)); text-decoration: underline;
+    text-underline-offset: 4px; padding: 12px 16px; min-height: 44px;
+  }
+
   /* ---- 토스트 ----
      되돌릴 수 있는 알림. 눈에 잘 띄되 화면을 막지 않는다.
      여러 개가 동시에 뜰 수 있어(예: 완료 직후 품절 토글) 좌표 하나에 고정하지 않되,
@@ -405,8 +442,14 @@
     margin: 0; font-size: clamp(22px, 5vmin, 52px); font-weight: 900;
     color: var(--brand); letter-spacing: .06em; cursor: default;
   }
-  /* 길게 누르는 동안 흐려진다 — 뭔가 일어나고 있다는 유일한 신호다 */
-  .display-title.holding { opacity: .4; transition: opacity 2s linear; }
+  /* 손님 눈에 띄지 않게 흐려 두되, 선생님이 찾으면 보이고 누르면 또렷해진다 */
+  .display-exit {
+    position: fixed; top: 10px; right: 10px; z-index: 40;
+    min-height: 44px; padding: 10px 14px; border-radius: 12px;
+    background: transparent; color: var(--muted); border: 2px solid transparent;
+    font-size: calc(13px * var(--scale)); opacity: .3;
+  }
+  .display-exit:hover, .display-exit:focus-visible { opacity: 1; border-color: var(--line); background: var(--panel); }
   .display-no {
     font-size: clamp(120px, 40vmin, 400px); font-weight: 900; line-height: .95;
     color: var(--brand-dark); font-variant-numeric: tabular-nums;
@@ -441,7 +484,6 @@
   /* 움직임에 민감한 사람을 위해 연출만 끈다 — 번호는 그대로 크게 보인다 */
   @media (prefers-reduced-motion: reduce) {
     .display-no.pop { animation: none; }
-    .display-title.holding { transition: none; }
   }
 
 </style>
@@ -491,6 +533,7 @@ const CONFIG = {
     ttsRate: 1.0,
     ttsVolume: 1.0,
     chime: true,
+    displayFullscreen: true,       // 호출 화면을 전체화면으로 열지 (PRD 3.3)
     lateMinutes: 5,              // 제조 지연 강조 기준 (분)
     pin: '1234',                 // 관리 화면 PIN (설정에서 변경 가능)
   },
@@ -1030,10 +1073,104 @@ function renderRolePicker(el) {
       <button data-role="barista"><span>☕</span>제조<small>바리스타 학생</small></button>
       <button data-role="display"><span>📣</span>호출<small>손님이 보는 화면</small></button>
       <button data-role="admin"><span>⚙️</span>관리<small>선생님</small></button>
-    </div>`;
+    </div>
+    <button class="guide-open" id="btn-guide">처음이신가요? 사용법 보기</button>`;
   for (const b of el.querySelectorAll('[data-role]')) {
     b.onclick = () => setRole(b.dataset.role);
   }
+  el.querySelector('#btn-guide').onclick = openGuide;
+}
+
+// ---- 사용법 안내 (선생님용) ----
+// 역할 위에 겹쳐 뜨는 화면이라 state.role을 건드리지 않는다.
+// 읽고 닫으면 보던 화면으로 그대로 돌아간다.
+let guideOpen = false;
+function openGuide() { guideOpen = true; render(); }
+function closeGuide() { guideOpen = false; render(); }
+
+function renderGuideView(el) {
+  el.innerHTML = `
+    <div class="guide">
+      <div class="guide-head">
+        <h2>달보드레 사용법</h2>
+        <button class="btn ghost" id="guide-close">닫기</button>
+      </div>
+      <p class="guide-lead">
+        선생님이 먼저 읽어 보시는 안내입니다. 학생은 이 화면을 볼 일이 없어요.
+        언제든 역할 선택 화면에서 다시 열 수 있습니다.
+      </p>
+
+      <section class="card">
+        <h3>① 기기를 이렇게 놓습니다</h3>
+        <table class="guide-table">
+          <tr><th>태블릿 1</th><td>주문 — 캐셔 학생이 손님을 맞습니다</td></tr>
+          <tr><th>태블릿 2</th><td>제조 — 바리스타 학생이 만들 음료를 봅니다</td></tr>
+          <tr><th>모니터 · TV</th><td>호출 — 손님이 번호를 보는 화면입니다</td></tr>
+          <tr><th>선생님 기기</th><td>관리 — 메뉴와 설정을 바꿉니다</td></tr>
+        </table>
+        <p style="margin-top:10px">
+          기기마다 주소를 열고 역할을 한 번만 고르면 됩니다.
+          <b>고른 역할은 그 기기가 기억</b>하므로 다음 날 다시 고르지 않아도 돼요.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3>② 처음 한 번만 하면 되는 일</h3>
+        <ol>
+          <li>관리 화면에 들어갑니다. 처음 비밀번호는 <b>1234</b>입니다.</li>
+          <li><b>메뉴</b> 탭에서 파는 음료를 등록합니다. 사진은 휴대폰으로 찍은 걸 그대로 올리면 앱이 알아서 줄입니다.</li>
+          <li><b>설정</b> 탭에서 비밀번호를 바꿉니다. 학생이 실수로 메뉴를 지우지 않게 하는 잠금장치예요.</li>
+        </ol>
+      </section>
+
+      <section class="card">
+        <h3>③ 하루는 이렇게 흘러갑니다</h3>
+        <ol>
+          <li><b>주문</b> — 학생이 메뉴를 눌러 담고 ‘주문하기’를 누르면 번호가 나옵니다.</li>
+          <li><b>제조</b> — 만들 음료가 카드로 뜹니다. 오래 기다린 주문은 빨갛게 표시돼요. 다 만들면 ‘완료’를 누릅니다.</li>
+          <li><b>호출</b> — 완료한 번호가 손님 화면에 크게 뜨고, 차임음과 음성으로 불립니다.</li>
+        </ol>
+        <p>실수로 ‘완료’를 눌렀다면 잠깐 뜨는 <b>되돌리기</b>를 누르면 됩니다. 이때 번호를 다시 부르지는 않아요.</p>
+      </section>
+
+      <section class="card">
+        <h3>④ 호출 화면에서 기억할 것</h3>
+        <div class="guide-note">
+          <p><b>시작할 때 화면을 한 번 눌러 주세요.</b> 인터넷 브라우저는 사람이 한 번 건드리기 전에는 소리를 내지 못하게 막아 둡니다. 안내 문구가 떠 있으면 아직 소리가 안 나는 상태예요.</p>
+        </div>
+        <p style="margin-top:12px">
+          손님이 보는 화면이라 버튼을 두지 않았습니다. 다른 역할로 바꾸려면
+          <b>오른쪽 위 구석의 흐린 ‘역할 바꾸기’</b>를 누르세요.
+        </p>
+        <p>
+          전체화면이 불편하면 관리 → 설정에서 <b>‘호출 화면을 전체화면으로 열기’</b>를 꺼 두면 창 모드로 열립니다.
+          차임음도 같은 곳에서 끌 수 있어요.
+        </p>
+      </section>
+
+      <section class="card">
+        <h3>⑤ 자주 하게 되는 일</h3>
+        <table class="guide-table">
+          <tr><th>재료가 떨어졌을 때</th><td>관리 또는 제조 화면에서 그 메뉴의 ‘품절’을 켭니다. 주문 화면에서 흐려지고 눌리지 않아요.</td></tr>
+          <tr><th>글자가 작아 보일 때</th><td>화면 오른쪽 위 ‘가 가 가’로 세 단계까지 키웁니다. 기기마다 따로 기억됩니다.</td></tr>
+          <tr><th>주문번호를 1번부터</th><td>관리 → 설정 → ‘주문번호 다시 시작’. 날이 바뀌면 저절로 1번부터 시작하니 평소엔 쓸 일이 없어요.</td></tr>
+          <tr><th>오늘의 담당 학생</th><td>관리 → 담당에서 이름을 적으면 주문·제조 화면 위에 표시됩니다.</td></tr>
+        </table>
+      </section>
+
+      <section class="card">
+        <h3>⑥ 연습과 실제 운영</h3>
+        <p>
+          화면 오른쪽 위에 <b>‘연습 모드’</b>라고 떠 있으면 이 기기 안에서만 저장됩니다.
+          여러 기기가 같이 쓰려면 클라우드 연결이 필요해요. 연결되면 <b>‘연결됨’</b>으로 바뀝니다.
+        </p>
+        <p>
+          연습 모드에서도 주문·제조·호출을 그대로 해 볼 수 있으니,
+          학생과 미리 한 번 돌려 보시면 좋습니다.
+        </p>
+      </section>
+    </div>`;
+  el.querySelector('#guide-close').onclick = closeGuide;
 }
 
 // ---- 관리 화면 (PRD 3.6) ----
@@ -1407,6 +1544,14 @@ function renderSettingsTab(body) {
         <span>제조 지연 강조 기준 (분)</span>
         <input type="number" id="set-late" min="1" step="1">
       </label>
+      <label class="check">
+        <input type="checkbox" id="set-fullscreen">
+        호출 화면을 전체화면으로 열기
+      </label>
+      <label class="check">
+        <input type="checkbox" id="set-chime">
+        호출할 때 차임음 울리기
+      </label>
       <button class="btn primary" id="set-save">저장</button>
 
       <div class="reset-block">
@@ -1427,6 +1572,8 @@ function renderSettingsTab(body) {
         <button class="btn danger" id="btn-reset-no">주문번호 다시 시작</button>
       </div>
 
+      <button class="guide-open" id="btn-guide-settings">사용법 다시 보기</button>
+
       <div class="storage-info">
         <p>저장 위치 — 모드: ${state.backend.mode === 'local' ? '로컬' : '클라우드'} / 경로: ${CONFIG.dataRoot}/${CONFIG.spaceId}</p>
       </div>
@@ -1434,13 +1581,17 @@ function renderSettingsTab(body) {
   body.querySelector('#set-pin').value = s.pin || CONFIG.defaults.pin;
   body.querySelector('#set-fontscale').value = s.fontScale || CONFIG.defaults.fontScale;
   body.querySelector('#set-late').value = s.lateMinutes ?? CONFIG.defaults.lateMinutes;
+  body.querySelector('#set-fullscreen').checked = s.displayFullscreen ?? CONFIG.defaults.displayFullscreen;
+  body.querySelector('#set-chime').checked = s.chime ?? CONFIG.defaults.chime;
   body.querySelector('#set-save').onclick = async () => {
     const pin = body.querySelector('#set-pin').value.trim();
     const fontScale = body.querySelector('#set-fontscale').value;
     const lateMinutes = Number(body.querySelector('#set-late').value);
+    const displayFullscreen = body.querySelector('#set-fullscreen').checked;
+    const chime = body.querySelector('#set-chime').checked;
     if (!/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력해 주세요.', { ms: 4000 }); return; }
     if (!Number.isFinite(lateMinutes) || lateMinutes < 1) { toast('지연 기준은 1분 이상 숫자로 입력해 주세요.', { ms: 4000 }); return; }
-    await saveSettings({ pin, fontScale, lateMinutes });
+    await saveSettings({ pin, fontScale, lateMinutes, displayFullscreen, chime });
     toast('설정을 저장했어요.');
   };
 
@@ -1453,6 +1604,7 @@ function renderSettingsTab(body) {
     if (currentEl.isConnected) currentEl.textContent = `${nextOrderNo(value)}번`;
   });
   body.querySelector('#btn-reset-no').onclick = resetOrderNoFlow;
+  body.querySelector('#btn-guide-settings').onclick = openGuide;
 }
 
 // ---- 주문번호 초기화 (PRD 3.6.1) ----
@@ -2203,17 +2355,19 @@ function speak(text) {
 }
 
 // 호출 화면에는 상단바가 없어 '역할 바꾸기'를 누를 수 없다.
-// 손님이 무심코 빠져나가지 않도록, 제목을 2초 길게 눌러야만 나가지게 한다.
-function armDisplayExit(node) {
-  let timer = null;
-  const cancel = () => { clearTimeout(timer); node.classList.remove('holding'); };
-  node.addEventListener('pointerdown', () => {
-    cancel();
-    node.classList.add('holding');
-    timer = setTimeout(() => { cancel(); changeRole(); }, 2000);
-  });
-  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) node.addEventListener(ev, cancel);
-  node.title = '2초 길게 누르면 역할 선택으로 돌아갑니다';
+// 손님 눈에는 잘 띄지 않되 선생님은 찾을 수 있도록, 구석에 흐린 버튼을 둔다.
+// 손가락으로 겨냥할 수 있어야 하므로 흐릴 뿐 작지는 않다(44px).
+function buildDisplayExit() {
+  const btn = document.createElement('button');
+  btn.className = 'display-exit';
+  btn.textContent = '역할 바꾸기';
+  btn.setAttribute('aria-label', '역할 선택으로 돌아가기');
+  btn.onclick = () => {
+    // 전체화면으로 열었다면 먼저 빠져나와야 다음 화면이 창에 갇히지 않는다.
+    try { if (document.fullscreenElement) document.exitFullscreen?.(); } catch { }
+    changeRole();
+  };
+  return btn;
 }
 
 function buildDisplayGate() {
@@ -2231,8 +2385,11 @@ function buildDisplayGate() {
     displayReady = true;
     // 이 제스처 안에서 오디오를 깨워 둔다. 실제 소리는 호출이 있을 때만 난다.
     try { audioContext().resume(); } catch { /* 소리 없이도 화면은 쓴다 */ }
-    // 전체화면은 기기가 거절할 수 있다 (iOS Safari 등). 실패해도 그대로 쓴다.
-    try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { }
+    // 전체화면은 선생님이 끌 수 있다. 창 모드로 두고 다른 화면과 나란히 보는 경우가 있다.
+    // 켜 두어도 기기가 거절할 수 있다 (iOS Safari 등) — 실패해도 그대로 쓴다.
+    if (state.settings.displayFullscreen) {
+      try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { }
+    }
     render();
   };
   return gate;
@@ -2247,7 +2404,6 @@ function renderDisplayView(el) {
   const title = document.createElement('h1');
   title.className = 'display-title';
   title.textContent = CONFIG.cafeName;
-  armDisplayExit(title);
   wrap.appendChild(title);
 
   if (!top) {
@@ -2288,6 +2444,7 @@ function renderDisplayView(el) {
   }
 
   el.appendChild(wrap);
+  el.appendChild(buildDisplayExit());
   if (!displayReady) el.appendChild(buildDisplayGate());
 }
 
@@ -2339,6 +2496,12 @@ function render() {
   stopBaristaTimer();
   const el = document.getElementById('app');
   const bar = document.getElementById('topbar');
+  // 사용법은 역할 위에 겹쳐 뜬다 — 읽는 동안 다른 것이 끼어들지 않게 먼저 가로챈다.
+  if (guideOpen) {
+    bar.hidden = true;
+    renderGuideView(el);
+    return;
+  }
   if (!state.role) {
     bar.hidden = true;
     renderRolePicker(el);
