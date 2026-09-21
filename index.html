@@ -269,6 +269,8 @@
     font-size: calc(15px * var(--scale)); min-height: 44px;
   }
   .check input { width: 24px; height: 24px; flex-shrink: 0; accent-color: var(--brand); }
+  .danger-block { border-top-color: var(--danger); }
+  .danger-block h3 { color: var(--danger); }
 
   /* ---- 관리 화면 : 재료 (PRD 3.4 · Task 13) ---- */
   .ing-row .menu-price b { color: var(--ink); }
@@ -1160,6 +1162,14 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
       return api.subscribe(name, (docs) => cb(docs.filter((d) => d[field] >= from)));
     },
 
+    deleteAllSync(name) {
+      const db = load();
+      const n = Object.keys(db[name] || {}).length;
+      db[name] = {};
+      save(db); notify(db, name);
+      return n;
+    },
+
     queryRangeSync(name, field, from, to) {
       return docsOf(load(), name).filter((d) => d[field] >= from && d[field] <= to);
     },
@@ -1230,6 +1240,7 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
   api.resetOrderNo = async (bd, v) => api.resetOrderNoSync(bd, v);
   api.getCounter = async (bd) => api.getCounterSync(bd);
   api.queryRange = async (n, f, from, to) => api.queryRangeSync(n, f, from, to);
+  api.deleteAll = async (n) => api.deleteAllSync(n);
   api.clear = async () => api.clearSync();
   return api;
 }
@@ -1274,6 +1285,17 @@ async function createFirestoreBackend() {
       return fs.onSnapshot(fs.query(col(name), fs.where(field, '>=', from)), (snap) => {
         cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       });
+    },
+
+    // 컬렉션 하나를 통째로 지운다 (이 앱의 경로 안에서만). 한 번에 500건까지라 나눠서 지운다.
+    async deleteAll(name) {
+      const snap = await fs.getDocs(col(name));
+      for (let i = 0; i < snap.docs.length; i += 400) {
+        const batch = fs.writeBatch(db);
+        for (const d of snap.docs.slice(i, i + 400)) batch.delete(d.ref);
+        await batch.commit();
+      }
+      return snap.size;
     },
 
     // 기록 화면용 — 고른 기간만 그때 한 번 읽는다
@@ -1730,6 +1752,10 @@ function renderGuideView(el) {
           <tr><th>주문번호를 1번부터</th><td>관리 → 설정 → ‘주문번호 다시 시작’. 날이 바뀌면 저절로 1번부터 시작하니 평소엔 쓸 일이 없어요.</td></tr>
           <tr><th>손님이 안 올 때</th><td>매니저 → 준비 완료 카드의 ‘다시 호출’. 처음처럼 크게 뜨고 음성으로 한 번 더 부릅니다.</td></tr>
           <tr><th>주문을 잘못 받았을 때</th><td>매니저 → 카드의 ‘취소’. 판매 기록에서 빠지고, 취소 열에서 언제든 ‘되살리기’할 수 있어요.</td></tr>
+          <tr><th>재료를 관리하고 싶을 때</th><td>관리 → 재료에서 재료를 등록하고, 메뉴 ‘수정’에서 레시피를 넣으면 주문할 때마다 저절로 줄어요. 레시피를 비워 둔 메뉴는 재고를 건드리지 않으니 천천히 하나씩 채워도 됩니다.</td></tr>
+          <tr><th>장을 보러 갈 때</th><td>관리 → 재료 맨 위의 장볼 목록을 ‘목록 복사’하거나 ‘인쇄’합니다. 사 온 뒤에는 ‘입고’를 눌러 양을 더해요.</td></tr>
+          <tr><th>얼마나 팔았는지 볼 때</th><td>관리 → 기록에서 오늘 · 이번 주 · 이번 달을 고릅니다. ‘엑셀로 내려받기’로 파일도 받을 수 있어요.</td></tr>
+          <tr><th>리허설을 마쳤을 때</th><td>관리 → 설정 → ‘리허설 기록 지우기’. 메뉴와 재료 목록은 남고 주문 · 기록만 지워져요.</td></tr>
           <tr><th>오늘의 담당 학생</th><td>관리 → 담당에서 이름을 적으면 주문·제조 화면 위에 표시됩니다.</td></tr>
         </table>
       </section>
@@ -2766,6 +2792,21 @@ function renderSettingsTab(body) {
         <button class="btn danger" id="btn-reset-no">주문번호 다시 시작</button>
       </div>
 
+      <div class="reset-block danger-block">
+        <h3>리허설 기록 지우기</h3>
+        <p class="tab-desc">
+          연습하며 쌓인 주문 · 판매 기록 · 재고 기록을 모두 지우고, 주문번호를 1번부터 다시 시작해요.
+          <b>메뉴 · 레시피 · 재료 목록 · 설정은 그대로</b> 남습니다.
+          재료 수량은 되돌리지 않으니, 지운 뒤 재료 탭에서 실제 양으로 고쳐 주세요.
+          <b>지운 기록은 되살릴 수 없어요.</b> 실제 운영을 시작하기 전에 한 번만 쓰세요.
+        </p>
+        <label class="field">
+          <span>확인을 위해 카페 이름을 그대로 입력해 주세요: ‘${CONFIG.cafeName}’</span>
+          <input type="text" id="clear-name" autocomplete="off">
+        </label>
+        <button class="btn danger" id="btn-clear-records" disabled>기록 모두 지우기</button>
+      </div>
+
       <button class="guide-open" id="btn-guide-settings">사용법 다시 보기</button>
 
       <div class="storage-info">
@@ -2799,6 +2840,35 @@ function renderSettingsTab(body) {
   });
   body.querySelector('#btn-reset-no').onclick = resetOrderNoFlow;
   body.querySelector('#btn-guide-settings').onclick = openGuide;
+  const clearName = body.querySelector('#clear-name');
+  const clearBtn = body.querySelector('#btn-clear-records');
+  // 이름을 정확히 입력해야만 버튼이 눌린다 — 학생이 설정을 누르다 지우는 일이 없게
+  clearName.oninput = () => { clearBtn.disabled = clearName.value.trim() !== CONFIG.cafeName; };
+  clearBtn.onclick = clearRecordsFlow;
+}
+
+// ---- 리허설 기록 지우기 (원래 Task 19 · Phase 2 끝으로 앞당김) ----
+// 기록만 지운다. 메뉴 · 재료 · 설정은 남긴다 — 리허설 뒤에 메뉴를 다시 등록하게 만들면 안 된다.
+// 화면이 들고 있는 주문은 최근 며칠 것뿐이라, 데이터베이스에서 직접 찾아 지운다.
+const RECORD_COLLECTIONS = ['orders', 'stockLogs', 'counterResets', 'counters'];
+
+async function clearRecordsFlow() {
+  const ok = await confirmModal({
+    title: '기록을 모두 지울까요?',
+    msg: '주문 · 판매 · 재고 기록이 모두 지워지고 주문번호가 1번부터 다시 시작돼요.\n메뉴 · 재료 목록 · 설정은 남습니다. 지운 기록은 되살릴 수 없어요.',
+    okText: '모두 지우기', okClass: 'danger', cancelText: '그만두기',
+  });
+  if (!ok) return;
+  try {
+    let total = 0;
+    for (const name of RECORD_COLLECTIONS) total += await state.backend.deleteAll(name);
+    recordsCache = null;   // 기록 탭이 지운 뒤 모습을 다시 불러오게
+    toast(`기록 ${total}건을 지웠어요. 다음 주문은 1번입니다. 재료 수량을 확인해 주세요.`, { ms: 8000 });
+  } catch (err) {
+    console.error(err);
+    toast('기록을 다 지우지 못했어요. 인터넷 연결을 확인하고 다시 해 주세요.', { ms: 8000 });
+  }
+  render();
 }
 
 // ---- 주문번호 초기화 (PRD 3.6.1) ----
