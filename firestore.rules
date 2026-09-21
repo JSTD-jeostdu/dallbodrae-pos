@@ -1,0 +1,15 @@
+rules_version = '2';
+
+// ---- 달보드레 카페 POS ----
+// 이 앱 전용 Firebase 프로젝트에 쓰는 규칙이다. 콘솔의 규칙 탭 내용을 통째로 이것으로 바꾼다.
+//
+// 로그인 없이 운영하므로 주소와 설정값을 아는 사람은 dallbodrae_pos 경로를 읽고 쓸 수 있다.
+// 대신 이 경로의 정해진 컬렉션만 열고, 나머지는 전부 막는다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /dallbodrae_pos/{spaceId}/{collection}/{docId} {
+      allow read, write: if collection in
+        ['menus', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'counters', 'settings'];
+    }
+  }
+}

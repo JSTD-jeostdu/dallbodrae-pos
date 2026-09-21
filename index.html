@@ -845,6 +845,91 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
   return api;
 }
 
+// ---- Firestore 모드 ----
+// CONFIG.firebase.apiKey 가 채워져 있을 때 쓴다. 기기 여러 대가 실시간으로 함께 본다.
+// 경로: {dataRoot}/{spaceId}/{컬렉션}/{문서}
+// 인스턴스 이름을 따로 줘서 같은 도메인의 다른 앱과 오프라인 캐시가 섞이지 않게 한다.
+async function createFirestoreBackend() {
+  const v = CONFIG.firebaseVersion;
+  const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-app.js`);
+  const fs = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-firestore.js`);
+
+  const app = initializeApp(CONFIG.firebase, CONFIG.appName);
+
+  // 오프라인 캐시 (PRD 6.4). 인터넷이 잠깐 끊겨도 화면이 비지 않는다.
+  // 같은 기기에서 탭을 여러 개 열 수 있으므로 멀티탭 매니저를 쓴다.
+  const settings = {};
+  if (fs.persistentLocalCache && fs.persistentMultipleTabManager) {
+    settings.localCache = fs.persistentLocalCache({ tabManager: fs.persistentMultipleTabManager() });
+  }
+  const db = CONFIG.databaseId
+    ? fs.initializeFirestore(app, settings, CONFIG.databaseId)
+    : fs.initializeFirestore(app, settings);
+
+  const col = (name) => fs.collection(db, CONFIG.dataRoot, CONFIG.spaceId, name);
+  const ref = (name, id) => fs.doc(db, CONFIG.dataRoot, CONFIG.spaceId, name, id);
+  const counterRef = (bd) => ref('counters', bd);
+
+  return {
+    mode: 'firestore',
+
+    subscribe(name, cb) {
+      return fs.onSnapshot(col(name), (snap) => {
+        cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+    },
+
+    async add(name, data) {
+      const d = await fs.addDoc(col(name), data);
+      return d.id;
+    },
+
+    // 필드 단위 merge — 문서 전체를 덮어쓰지 않는다 (로컬 모드와 같은 동작)
+    async set(name, id, patch) {
+      await fs.setDoc(ref(name, id), patch, { merge: true });
+    },
+
+    async remove(name, id) {
+      await fs.deleteDoc(ref(name, id));
+    },
+
+    // 재고 증감은 원자적으로 — 두 기기가 동시에 팔아도 유실되지 않는다
+    async bump(name, id, fields) {
+      const patch = {};
+      for (const [k, delta] of Object.entries(fields)) patch[k] = fs.increment(delta);
+      await fs.setDoc(ref(name, id), patch, { merge: true });
+    },
+
+    // 두 기기가 동시에 주문해도 번호가 겹치지 않으려면 트랜잭션이어야 한다.
+    // 트랜잭션은 인터넷이 있어야 하므로 끊겨 있으면 실패한다 (주문 화면이 알린다).
+    async issueOrderNo(businessDate) {
+      return fs.runTransaction(db, async (tx) => {
+        const snap = await tx.get(counterRef(businessDate));
+        const value = nextOrderNo(snap.exists() ? snap.data().value : 0);
+        tx.set(counterRef(businessDate), { value }, { merge: true });
+        return value;
+      });
+    },
+
+    async resetOrderNo(businessDate, value) {
+      await fs.setDoc(counterRef(businessDate), { value }, { merge: true });
+    },
+
+    async getCounter(businessDate) {
+      const snap = await fs.getDoc(counterRef(businessDate));
+      return snap.exists() ? snap.data().value : 0;
+    },
+
+    async clear() {
+      // 초기화도 이 경로 안에서만 동작한다
+      for (const name of COLLECTIONS.concat('counters')) {
+        const snap = await fs.getDocs(col(name));
+        await Promise.all(snap.docs.map((d) => fs.deleteDoc(d.ref)));
+      }
+    },
+  };
+}
+
 // ===== 4. 공통 UI 부품 =====
 
 // 화면에 하나뿐인 토스트 쌓기 틀. #app처럼 절대 다시 만들지 않고 한 번만 붙인다.
@@ -2796,8 +2881,23 @@ test('음성 문구는 번호를 한글 수사로 바꾼다', () => {
 if (new URLSearchParams(location.search).has('selftest')) {
   runSelfTest();
 } else {
-  // Firebase 키가 비어 있으면 로컬 모드로 동작한다 (PRD 6.2)
-  state.backend = createLocalBackend();
+  // Firebase 키가 있으면 클라우드, 비어 있으면 로컬 모드로 동작한다 (PRD 6.2)
+  let netLabel = '연습 모드';
+  if (CONFIG.firebase.apiKey) {
+    try {
+      state.backend = await createFirestoreBackend();
+      netLabel = '연결됨';
+    } catch (err) {
+      // 설정값이 틀렸거나 Firebase 파일을 못 받아온 경우다. 앱은 쓸 수 있게 로컬로 물러서되,
+      // 기기끼리 주문이 오가지 않으므로 선생님이 반드시 알아채야 한다.
+      console.error(err);
+      state.backend = createLocalBackend();
+      netLabel = '연결 안 됨';
+      toast('클라우드에 연결하지 못했어요. 이 기기에서만 저장됩니다. 인터넷과 설정값을 확인해 주세요.', { ms: 10000 });
+    }
+  } else {
+    state.backend = createLocalBackend();
+  }
 
   // 저장된 데이터가 깨져 있으면 로컬 백엔드는 조용히 빈 상태로 시작한다.
   // 선생님 눈에는 "메뉴가 이유 없이 사라진" 것으로 보이므로 반드시 알린다.
@@ -2827,9 +2927,8 @@ if (new URLSearchParams(location.search).has('selftest')) {
     render();
   });
 
-  // 지금 로컬인지 클라우드인지 상단바에 표시한다.
-  // Task 11에서 Firestore를 붙이면 '연결됨'으로 바뀐다.
-  document.getElementById('net-tag').textContent = '연습 모드';
+  // 지금 로컬인지 클라우드인지 상단바에 표시한다 — 선생님이 "지금 연결돼 있나?"를 알 수 있어야 한다.
+  document.getElementById('net-tag').textContent = netLabel;
 
   // 토스트가 footer를 가리지 않도록 처음 한 번 맞추고, 이후 크기 변화를 계속 지켜본다.
   syncToastBottomOffset();
