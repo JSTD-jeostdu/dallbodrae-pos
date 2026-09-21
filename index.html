@@ -995,6 +995,61 @@ function menuLowStock(menu, ingredientMap) {
   });
 }
 
+// ---- 집계 (PRD 3.5 · Task 15) ----
+// 판매로 세는 주문: 제조 중 · 준비 완료 · 수령 완료. 취소만 뺀다.
+function inRange(order, from, to) {
+  return order.businessDate >= from && order.businessDate <= to;   // 'YYYY-MM-DD'는 문자열 비교로 충분
+}
+
+function summarize(orders, from, to) {
+  const picked = orders.filter((o) => inRange(o, from, to));
+  // 시간순으로 훑어야 메뉴 이름이 바뀌었을 때 가장 최근 이름이 남는다
+  const live = picked.filter((o) => o.status !== 'cancelled')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+
+  const menuMap = new Map();
+  const byHour = Array.from({ length: 24 }, (_, hour) => ({ hour, qty: 0 }));
+  const days = new Set();
+  let totalQty = 0, totalAmount = 0;
+
+  for (const o of live) {
+    days.add(o.businessDate);
+    const hour = new Date(o.createdAt).getHours();
+    for (const it of o.items || []) {
+      const qty = Number(it.qty) || 0;
+      const amount = (Number(it.price) || 0) * qty;
+      const cur = menuMap.get(it.menuId) || { menuId: it.menuId, name: it.name, qty: 0, amount: 0 };
+      cur.qty += qty;
+      cur.amount += amount;
+      cur.name = it.name;
+      menuMap.set(it.menuId, cur);
+      if (byHour[hour]) byHour[hour].qty += qty;
+      totalQty += qty;
+      totalAmount += amount;
+    }
+  }
+
+  return {
+    orderCount: live.length,
+    cancelledCount: picked.length - live.length,
+    dayCount: days.size,
+    byMenu: [...menuMap.values()].sort((a, b) => b.qty - a.qty),
+    byHour,
+    totalQty,
+    totalAmount,
+  };
+}
+
+// ---- CSV ----
+function csvCell(v) {
+  const s = v === null || v === undefined ? '' : String(v);
+  return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+}
+
+function toCsv(rows) {
+  return rows.map((r) => r.map(csvCell).join(',')).join('\n');
+}
+
 // ===== 3. 백엔드 어댑터 =====
 // 로컬 모드와 Firestore 모드가 아래 메서드를 똑같이 제공한다.
 //   subscribe / add / set / remove / issueOrderNo / resetOrderNo / bump
@@ -4070,6 +4125,83 @@ test('지금 상태에서 할 수 있는 동작만 허용한다', () => {
   eq(canApply('restore', { status: 'waiting' }), false);
   eq(canApply('complete', { status: 'ready' }), false, '이미 완료한 주문을 또 완료하지 않는다');
   eq(canApply('recall', { status: 'ready' }), true);
+});
+
+// ---- 집계 (Task 15) ----
+const ORDERS_FOR_TEST = [
+  { id: '1', businessDate: '2026-09-20', status: 'ready', createdAt: new Date(2026,8,20,10,10).getTime(),
+    items: [{ menuId: 'a', name: '아메리카노', price: 1000, qty: 2 }], total: 2000 },
+  { id: '2', businessDate: '2026-09-20', status: 'pickedUp', createdAt: new Date(2026,8,20,12,30).getTime(),
+    items: [{ menuId: 'b', name: '라떼', price: 1500, qty: 1 }], total: 1500 },
+  { id: '3', businessDate: '2026-09-21', status: 'waiting', createdAt: new Date(2026,8,21,10,5).getTime(),
+    items: [{ menuId: 'a', name: '아메리카노', price: 1000, qty: 1 }], total: 1000 },
+  { id: '4', businessDate: '2026-09-21', status: 'cancelled', createdAt: new Date(2026,8,21,10,6).getTime(),
+    items: [{ menuId: 'a', name: '아메리카노', price: 1000, qty: 9 }], total: 9000 },
+];
+
+test('기간은 양끝을 포함한다', () => {
+  eq(inRange(ORDERS_FOR_TEST[0], '2026-09-20', '2026-09-20'), true);
+  eq(inRange(ORDERS_FOR_TEST[2], '2026-09-20', '2026-09-20'), false);
+  eq(inRange(ORDERS_FOR_TEST[2], '2026-09-20', '2026-09-21'), true);
+});
+
+test('취소된 주문은 집계에서 빠진다', () => {
+  const s = summarize(ORDERS_FOR_TEST, '2026-09-21', '2026-09-21');
+  eq(s.orderCount, 1);
+  eq(s.cancelledCount, 1);
+  eq(s.totalQty, 1, '취소된 9잔은 세지 않는다');
+});
+
+test('제조 중 · 준비 완료 · 수령 완료는 모두 판매로 센다', () => {
+  const s = summarize(ORDERS_FOR_TEST, '2026-09-20', '2026-09-21');
+  eq(s.orderCount, 3);
+  eq(s.totalAmount, 4500);
+});
+
+test('메뉴별로 많이 팔린 순으로 모은다', () => {
+  const s = summarize(ORDERS_FOR_TEST, '2026-09-20', '2026-09-21');
+  eq(s.byMenu.map((m) => [m.menuId, m.qty]), [['a', 3], ['b', 1]]);
+  eq(s.byMenu[0].amount, 3000);
+});
+
+test('메뉴 이름이 바뀌었으면 가장 최근 주문의 이름을 쓴다', () => {
+  const orders = [
+    { businessDate: '2026-09-21', status: 'ready', createdAt: 200, items: [{ menuId: 'a', name: '새 이름', qty: 1 }] },
+    { businessDate: '2026-09-20', status: 'ready', createdAt: 100, items: [{ menuId: 'a', name: '옛 이름', qty: 1 }] },
+  ];
+  eq(summarize(orders, '2026-09-20', '2026-09-21').byMenu[0].name, '새 이름');
+});
+
+test('운영일 수는 주문이 있었던 날만 센다', () => {
+  eq(summarize(ORDERS_FOR_TEST, '2026-09-20', '2026-09-21').dayCount, 2);
+  eq(summarize(ORDERS_FOR_TEST, '2026-09-20', '2026-09-20').dayCount, 1);
+});
+
+test('시간대별 분포는 0~23시를 모두 채운다', () => {
+  const s = summarize(ORDERS_FOR_TEST, '2026-09-20', '2026-09-20');
+  eq(s.byHour.length, 24);
+  eq(s.byHour[10].qty, 2);
+  eq(s.byHour[12].qty, 1);
+  eq(s.byHour[0].qty, 0);
+});
+
+test('빈 기간도 안전하게 집계한다', () => {
+  const s = summarize([], '2026-09-20', '2026-09-20');
+  eq(s.orderCount, 0); eq(s.totalQty, 0); eq(s.byMenu, []); eq(s.dayCount, 0);
+});
+
+// ---- CSV ----
+test('CSV 셀에 쉼표·따옴표·줄바꿈이 있으면 감싼다', () => {
+  eq(csvCell('아메리카노'), '아메리카노');
+  eq(csvCell('우유, 원두'), '"우유, 원두"');
+  eq(csvCell('12"'), '"12"""');
+  eq(csvCell('한 줄\n두 줄'), '"한 줄\n두 줄"');
+  eq(csvCell(null), '');
+  eq(csvCell(0), '0');
+});
+
+test('CSV는 줄바꿈으로 이어붙인다', () => {
+  eq(toCsv([['메뉴', '잔'], ['라떼', 3]]), '메뉴,잔\n라떼,3');
 });
 
 // ===== 7. 시작 =====
