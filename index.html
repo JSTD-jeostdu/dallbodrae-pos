@@ -841,6 +841,17 @@ function orderPatch(action, order, now) {
   }
 }
 
+// 동작마다 출발할 수 있는 상태. 화면에 보이던 카드가 이미 다른 기기에서 바뀌었을 수 있으므로
+// 바꾸기 직전에 최신 상태로 한 번 더 확인한다 — 같은 주문을 두 번 취소해 재료가 두 번
+// 돌아오는 일을 막는다.
+const ORDER_FROM = {
+  complete: ['waiting'], backToMaking: ['ready'], recall: ['ready'],
+  pickUp: ['ready'], unPickUp: ['pickedUp'], cancel: ['waiting', 'ready'], restore: ['cancelled'],
+};
+function canApply(action, order) {
+  return (ORDER_FROM[action] || []).includes(order.status);
+}
+
 function callTime(order) {
   return order.calledAt || order.readyAt || 0;
 }
@@ -3042,14 +3053,28 @@ function buildOrderCard(order, now, lateMinutes) {
 // 주문 상태를 바꾸는 유일한 길. 되돌릴 동작을 주면 토스트에 '되돌리기'를 단다
 // (접근성 원칙 4: 모든 동작은 되돌릴 수 있다).
 async function applyOrder(order, action, { message, undo } = {}) {
-  await state.backend.set('orders', order.id, orderPatch(action, order, Date.now()));
+  const cur = state.orders.find((o) => o.id === order.id) || order;
+  if (!canApply(action, cur)) {
+    toast(`${cur.orderNo}번은 이미 다른 화면에서 바뀌었어요.`);
+    return;
+  }
+  const patch = orderPatch(action, cur, Date.now());
+  await state.backend.set('orders', cur.id, patch);
+  // 취소하면 주문할 때 뺀 재료를 되돌리고, 되살리면 다시 뺀다 (Task 14)
+  const effect = stockEffect(action, cur);
+  if (Object.keys(effect).length) {
+    await applyStock(effect, action, { orderId: cur.id, orderNo: cur.orderNo }).catch(() => {
+      toast('재료 수량을 맞추지 못했어요. 관리 → 재료에서 확인해 주세요.', { ms: 6000 });
+    });
+  }
   if (!message) return;
   if (!undo) { toast(message); return; }
-  const after = { ...order, ...orderPatch(action, order, Date.now()) };
+  const after = { ...cur, ...patch };
   toast(message, {
     actionText: '되돌리기',
     ms: CONFIG.undoSeconds * 1000,
-    onAction: () => state.backend.set('orders', order.id, orderPatch(undo, after, Date.now())),
+    // 되돌리기도 같은 길로 — 그래야 취소를 되돌릴 때 재료도 다시 빠진다
+    onAction: () => applyOrder(after, undo),
   });
 }
 
@@ -3530,7 +3555,7 @@ function buildManagerCard(order, colKey) {
 async function cancelOrder(order) {
   const ok = await confirmModal({
     title: `${order.orderNo}번 주문을 취소할까요?`,
-    msg: '판매 기록에서 빠지고 호출 화면에서도 사라집니다.\n취소 열에서 언제든 되살릴 수 있어요.',
+    msg: '판매 기록에서 빠지고 호출 화면에서도 사라집니다. 레시피대로 뺐던 재료는 다시 돌아와요.\n취소 열에서 언제든 되살릴 수 있어요.',
     okText: '주문 취소',
     okClass: 'danger',
     cancelText: '그대로 두기',
@@ -4033,6 +4058,18 @@ test('재료가 부족한 메뉴를 알아낸다', () => {
   const ingMap = { milk: { current: 100, reorderPoint: 1000 } };
   eq(menuLowStock({ recipe: [{ ingredientId: 'milk', qty: 150 }] }, ingMap), true);
   eq(menuLowStock({ recipe: [] }, ingMap), false, '레시피가 없으면 경고하지 않는다');
+});
+
+// ---- 상태 전이 가능 여부 (Task 14) ----
+test('지금 상태에서 할 수 있는 동작만 허용한다', () => {
+  eq(canApply('cancel', { status: 'waiting' }), true);
+  eq(canApply('cancel', { status: 'ready' }), true);
+  eq(canApply('cancel', { status: 'cancelled' }), false, '두 기기가 같은 주문을 취소해도 재료가 두 번 돌아오지 않게');
+  eq(canApply('cancel', { status: 'pickedUp' }), false, '가져간 주문은 취소하지 않는다');
+  eq(canApply('restore', { status: 'cancelled' }), true);
+  eq(canApply('restore', { status: 'waiting' }), false);
+  eq(canApply('complete', { status: 'ready' }), false, '이미 완료한 주문을 또 완료하지 않는다');
+  eq(canApply('recall', { status: 'ready' }), true);
 });
 
 // ===== 7. 시작 =====
