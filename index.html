@@ -435,6 +435,67 @@
     font-size: calc(18px * var(--scale)); color: var(--ok);
   }
   .pickup-card { border-color: var(--ok); }
+  /* ---- 매니저 보드 (Task 11.5) ----
+     한 화면에서 주문의 흐름 전체를 본다. 보드는 main 높이를 꽉 채우고,
+     열마다 따로 스크롤한다 — 수령 완료가 길어져도 제조 중이 밀려 내려가지 않는다. */
+  .manager { height: 100%; display: flex; flex-direction: column; gap: 12px; min-height: 0; }
+  .manager-bar { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .manager-bar h2 { margin: 0; flex: 1 0 auto; font-size: calc(20px * var(--scale)); color: var(--brand); }
+  .seg { display: inline-flex; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .seg button {
+    min-height: 44px; padding: 8px 14px; background: var(--panel); color: var(--muted);
+    font-size: calc(14px * var(--scale)); font-weight: 700;
+  }
+  .seg button[aria-pressed="true"] { background: var(--brand); color: #fff; }
+  /* 좁은 화면에서 태블릿 모드를 골라도 열이 짓눌려 글자가 세로로 쪼개지지 않게 최소 폭을 지키고,
+     모자라면 보드 안에서만 옆으로 넘긴다 (페이지 전체는 가로로 밀리지 않는다) */
+  .mboard {
+    flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(4, minmax(160px, 1fr));
+    gap: 12px; overflow-x: auto;
+  }
+  .mboard.single { grid-template-columns: 1fr; }
+  .mcol {
+    display: flex; flex-direction: column; min-height: 0;
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+  }
+  .mcol-head {
+    display: flex; align-items: center; gap: 8px; padding: 12px 14px;
+    border-bottom: 2px solid var(--line); font-weight: 900; font-size: calc(16px * var(--scale));
+  }
+  .mcol-count {
+    margin-left: auto; min-width: 2em; text-align: center; padding: 2px 8px; border-radius: 999px;
+    background: var(--bg); border: 2px solid var(--line); font-size: calc(14px * var(--scale));
+  }
+  .mcol.waiting .mcol-head { color: var(--brand-dark); }
+  .mcol.ready { border-color: var(--ok); }
+  .mcol.ready .mcol-head { color: var(--ok); }
+  .mcol.pickedUp .mcol-head { color: var(--muted); }
+  .mcol.cancelled .mcol-head { color: var(--danger); }
+  .mcol-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+  .mcol-empty { color: var(--muted); text-align: center; padding: 20px 0; font-size: calc(14px * var(--scale)); }
+  .mcard {
+    border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--panel);
+    display: flex; flex-direction: column; gap: 8px;
+  }
+  .mcard-no { font-size: calc(28px * var(--scale)); font-weight: 900; color: var(--brand); line-height: 1; }
+  .mcol.pickedUp .mcard, .mcol.cancelled .mcard { background: var(--bg); }
+  .mcol.pickedUp .mcard-no, .mcol.cancelled .mcard-no { color: var(--muted); }
+  .mcol.cancelled .mcard-no { text-decoration: line-through; }
+  .mcard .oi-thumb { width: 32px; height: 32px; font-size: 18px; border-radius: 8px; }
+  .mcard .oi-name, .mcard .oi-qty { font-size: calc(14px * var(--scale)); }
+  .mcard-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+  .mcard-actions .btn { flex: 1 1 auto; min-height: 44px; padding: 8px 10px; font-size: calc(13px * var(--scale)); }
+  .btn.danger-ghost { background: var(--panel); color: var(--danger); border: 2px solid var(--danger) !important; }
+  /* 모바일 모드 — 열 하나씩, 위의 탭으로 고른다 */
+  .mtabs { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 6px; }
+  .mtabs button {
+    min-height: 52px; padding: 6px 4px; border-radius: 12px; background: var(--panel);
+    border: 2px solid var(--line); font-weight: 700; font-size: calc(13px * var(--scale)); color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+  }
+  .mtabs button b { font-size: calc(18px * var(--scale)); }
+  .mtabs button[aria-selected="true"] { background: var(--brand); border-color: var(--brand-dark); color: #fff; }
+
   /* ---- 호출 화면 (PRD 3.3) ----
      손님이 멀리서 보는 화면이다. 여기서는 글자 크기 3단계(--scale)를 곱하지 않는다 —
      이미 화면이 허락하는 최대치(vmin)까지 키워 두었고, 배율을 한 번 더 곱하면
@@ -577,6 +638,7 @@ const CONFIG = {
 
   localStorageKey: 'dallbodrae-local-db',
   roleKey: 'dallbodrae-role',
+  managerModeKey: 'dallbodrae-manager-mode',   // 매니저 보드 태블릿/모바일 모드 (기기마다)
   fontScaleKey: 'dallbodrae-font-scale',
 };
 
@@ -1135,7 +1197,7 @@ const state = {
   fontScale: 'normal',
 };
 
-const ROLE_LABEL = { order: '주문', barista: '제조', display: '호출', admin: '관리' };
+const ROLE_LABEL = { order: '주문', barista: '제조', display: '호출', manager: '매니저', admin: '관리' };
 
 // ---- 설정 저장 ----
 // settings/app 문서 하나에 필드 단위로 merge 한다 (backend.set 규약).
@@ -1256,6 +1318,7 @@ function renderRolePicker(el) {
       <button data-role="order"><span>🧾</span>주문<small>캐셔 학생</small></button>
       <button data-role="barista"><span>☕</span>제조<small>바리스타 학생</small></button>
       <button data-role="display"><span>📣</span>호출<small>손님이 보는 화면</small></button>
+      <button data-role="manager"><span>📋</span>매니저<small>선생님 · 한눈에 보기</small></button>
       <button data-role="admin"><span>⚙️</span>관리<small>선생님</small></button>
     </div>
     <button class="guide-open" id="btn-guide">처음이신가요? 사용법 보기</button>`;
@@ -1290,7 +1353,7 @@ function renderGuideView(el) {
           <tr><th>태블릿 1</th><td>주문 — 캐셔 학생이 손님을 맞습니다</td></tr>
           <tr><th>태블릿 2</th><td>제조 — 바리스타 학생이 만들 음료를 봅니다</td></tr>
           <tr><th>모니터 · TV</th><td>호출 — 손님이 번호를 보는 화면입니다</td></tr>
-          <tr><th>선생님 기기</th><td>관리 — 메뉴와 설정을 바꿉니다</td></tr>
+          <tr><th>선생님 기기</th><td>매니저 — 주문 흐름 전체를 한눈에 보고 바로잡습니다<br>관리 — 메뉴와 설정을 바꿉니다</td></tr>
         </table>
         <p style="margin-top:10px">
           기기마다 주소를 열고 역할을 한 번만 고르면 됩니다.
@@ -1313,6 +1376,7 @@ function renderGuideView(el) {
           <li><b>주문</b> — 학생이 메뉴를 눌러 담고 ‘주문하기’를 누르면 번호가 나옵니다.</li>
           <li><b>제조</b> — 만들 음료가 카드로 뜹니다. 오래 기다린 주문은 빨갛게 표시돼요. 다 만들면 ‘완료’를 누릅니다.</li>
           <li><b>호출</b> — 완료한 번호가 손님 화면에 크게 뜨고, 차임음과 음성으로 불립니다.</li>
+          <li><b>수령</b> — 바리스타가 음료를 건네면서 제조 화면 아래의 ‘가져감’을 누릅니다. 그 번호는 호출 화면에서 빠집니다.</li>
         </ol>
         <p>실수로 ‘완료’를 눌렀다면 잠깐 뜨는 <b>되돌리기</b>를 누르면 됩니다. 이때 번호를 다시 부르지는 않아요.</p>
       </section>
@@ -1338,6 +1402,8 @@ function renderGuideView(el) {
           <tr><th>재료가 떨어졌을 때</th><td>관리 또는 제조 화면에서 그 메뉴의 ‘품절’을 켭니다. 주문 화면에서 흐려지고 눌리지 않아요.</td></tr>
           <tr><th>글자가 작아 보일 때</th><td>화면 오른쪽 위 ‘가 가 가’로 세 단계까지 키웁니다. 기기마다 따로 기억됩니다.</td></tr>
           <tr><th>주문번호를 1번부터</th><td>관리 → 설정 → ‘주문번호 다시 시작’. 날이 바뀌면 저절로 1번부터 시작하니 평소엔 쓸 일이 없어요.</td></tr>
+          <tr><th>손님이 안 올 때</th><td>매니저 → 준비 완료 카드의 ‘다시 호출’. 처음처럼 크게 뜨고 음성으로 한 번 더 부릅니다.</td></tr>
+          <tr><th>주문을 잘못 받았을 때</th><td>매니저 → 카드의 ‘취소’. 판매 기록에서 빠지고, 취소 열에서 언제든 ‘되살리기’할 수 있어요.</td></tr>
           <tr><th>오늘의 담당 학생</th><td>관리 → 담당에서 이름을 적으면 주문·제조 화면 위에 표시됩니다.</td></tr>
         </table>
       </section>
@@ -2776,11 +2842,181 @@ function onOrdersChanged() {
   setTimeout(() => speak(speechText(state.settings.ttsText, top.orderNo)), 900);
 }
 
+// ---- 매니저 보드 (Task 11.5) ----
+// 선생님이 주문 · 제조 · 호출을 한 화면에서 보고 바로잡는다. 비밀번호는 걸지 않는다.
+const MANAGER_COLUMNS = [
+  { key: 'waiting',   title: '☕ 제조 중' },
+  { key: 'ready',     title: '🔔 준비 완료' },
+  { key: 'pickedUp',  title: '✅ 수령 완료' },
+  { key: 'cancelled', title: '✖ 취소' },
+];
+
+// 모드는 선생님이 고른 게 있으면 그것, 없으면 화면 폭으로 정한다.
+function managerMode() {
+  let saved = null;
+  try { saved = localStorage.getItem(CONFIG.managerModeKey); } catch { }
+  if (saved === 'tablet' || saved === 'mobile') return saved;
+  return window.innerWidth < 700 ? 'mobile' : 'tablet';
+}
+function setManagerMode(mode) {
+  try { localStorage.setItem(CONFIG.managerModeKey, mode); } catch { }
+  render();
+}
+
+let managerTab = 'waiting';     // 모바일 모드에서 보고 있는 열
+const managerScroll = {};       // 열마다 스크롤 위치 — 다시 그려도 튀지 않게
+
+function renderManagerView(el) {
+  const mode = managerMode();
+  const board = managerBoard(state.orders, businessDateOf());
+
+  const wrap = document.createElement('div');
+  wrap.className = 'manager';
+
+  const bar = document.createElement('div');
+  bar.className = 'manager-bar';
+  const h = document.createElement('h2');
+  h.textContent = '주문 한눈에 보기';
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', '보기 방식');
+  for (const [key, label] of [['tablet', '태블릿 모드'], ['mobile', '모바일 모드']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(mode === key));
+    b.onclick = () => setManagerMode(key);
+    seg.appendChild(b);
+  }
+  bar.append(h, seg);
+  wrap.appendChild(bar);
+
+  let columns = MANAGER_COLUMNS;
+  if (mode === 'mobile') {
+    const tabs = document.createElement('div');
+    tabs.className = 'mtabs';
+    tabs.setAttribute('role', 'tablist');
+    for (const c of MANAGER_COLUMNS) {
+      const t = document.createElement('button');
+      t.type = 'button';
+      t.setAttribute('role', 'tab');
+      t.setAttribute('aria-selected', String(managerTab === c.key));
+      const name = document.createElement('span');
+      name.textContent = c.title;
+      const count = document.createElement('b');
+      count.textContent = board[c.key].length;
+      t.append(name, count);
+      t.onclick = () => { managerTab = c.key; render(); };
+      tabs.appendChild(t);
+    }
+    wrap.appendChild(tabs);
+    columns = MANAGER_COLUMNS.filter((c) => c.key === managerTab);
+  }
+
+  const boardEl = document.createElement('div');
+  boardEl.className = 'mboard' + (mode === 'mobile' ? ' single' : '');
+  for (const c of columns) boardEl.appendChild(buildManagerColumn(c, board[c.key]));
+  wrap.appendChild(boardEl);
+  el.appendChild(wrap);
+
+  // 붙인 뒤에야 스크롤 위치를 되살릴 수 있다
+  for (const body of el.querySelectorAll('.mcol-body')) {
+    body.scrollTop = managerScroll[body.dataset.col] || 0;
+  }
+}
+
+function buildManagerColumn(col, list) {
+  const sec = document.createElement('section');
+  sec.className = `mcol ${col.key}`;
+  const head = document.createElement('div');
+  head.className = 'mcol-head';
+  const title = document.createElement('span');
+  title.textContent = col.title;
+  const count = document.createElement('span');
+  count.className = 'mcol-count';
+  count.textContent = list.length;
+  count.setAttribute('aria-label', `${list.length}건`);
+  head.append(title, count);
+  sec.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'mcol-body';
+  body.dataset.col = col.key;
+  body.addEventListener('scroll', () => { managerScroll[col.key] = body.scrollTop; });
+  if (list.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'mcol-empty';
+    empty.textContent = '없음';
+    body.appendChild(empty);
+  }
+  for (const order of list) body.appendChild(buildManagerCard(order, col.key));
+  sec.appendChild(body);
+  return sec;
+}
+
+function buildManagerCard(order, colKey) {
+  const card = document.createElement('div');
+  card.className = 'mcard';
+  const no = document.createElement('div');
+  no.className = 'mcard-no';
+  no.textContent = String(order.orderNo);
+  card.appendChild(no);
+  for (const item of order.items || []) card.appendChild(buildItemLine(item));
+
+  const actions = document.createElement('div');
+  actions.className = 'mcard-actions';
+  const n = order.orderNo;
+  const add = (label, cls, aria, onclick) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = `btn ${cls}`;
+    b.textContent = label;
+    b.setAttribute('aria-label', aria);
+    b.onclick = onclick;
+    actions.appendChild(b);
+  };
+
+  if (colKey === 'waiting') {
+    add('완료 ▶', 'ok', `${n}번 완료하고 호출`, () => markReady(order));
+    add('취소', 'danger-ghost', `${n}번 주문 취소`, () => cancelOrder(order));
+  } else if (colKey === 'ready') {
+    add('◀ 제조로', 'ghost', `${n}번을 제조 중으로 되돌리기`,
+      () => applyOrder(order, 'backToMaking', { message: `${n}번을 제조 중으로 되돌렸어요` }));
+    add('다시 호출', 'ghost', `${n}번 다시 호출`,
+      () => applyOrder(order, 'recall', { message: `${n}번을 다시 불렀어요` }));
+    add('수령 ▶', 'primary', `${n}번 손님이 가져감`, () => markPickedUp(order));
+    add('취소', 'danger-ghost', `${n}번 주문 취소`, () => cancelOrder(order));
+  } else if (colKey === 'pickedUp') {
+    add('◀ 준비 완료로', 'ghost', `${n}번을 준비 완료로 되돌리기`,
+      () => applyOrder(order, 'unPickUp', { message: `${n}번을 준비 완료로 되돌렸어요` }));
+  } else if (colKey === 'cancelled') {
+    add('되살리기', 'ghost', `${n}번 주문 되살리기`,
+      () => applyOrder(order, 'restore', { message: `${n}번 주문을 되살렸어요` }));
+  }
+  card.appendChild(actions);
+  return card;
+}
+
+// 취소는 판매 기록에서 빠지는 일이라 한 번 더 묻는다. 그래도 잘못 눌렀으면 되돌릴 수 있다.
+async function cancelOrder(order) {
+  const ok = await confirmModal({
+    title: `${order.orderNo}번 주문을 취소할까요?`,
+    msg: '판매 기록에서 빠지고 호출 화면에서도 사라집니다.\n취소 열에서 언제든 되살릴 수 있어요.',
+    okText: '주문 취소',
+    okClass: 'danger',
+    cancelText: '그대로 두기',
+  });
+  if (!ok) return;
+  await applyOrder(order, 'cancel', { message: `${order.orderNo}번 주문을 취소했어요`, undo: 'restore' });
+}
+
 // ---- 라우팅 ----
 const VIEWS = {
   order:   { render: renderOrderView },
   barista: { render: renderBaristaView },
   display: { render: renderDisplayView },
+  manager: { render: renderManagerView },
   admin: {
     render(el) {
       if (!adminUnlocked) { renderPinGate(el); return; }
