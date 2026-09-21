@@ -381,6 +381,57 @@
   .late-badge { display: none; font-size: calc(18px * var(--scale)); }
   .order-card.late .late-badge { display: inline; }
   .order-card.late .order-elapsed { color: var(--danger); font-weight: 700; }
+  /* ---- 호출 화면 (PRD 3.3) ----
+     손님이 멀리서 보는 화면이다. 여기서는 글자 크기 3단계(--scale)를 곱하지 않는다 —
+     이미 화면이 허락하는 최대치(vmin)까지 키워 두었고, 배율을 한 번 더 곱하면
+     번호가 화면 밖으로 넘친다. */
+  .display-screen {
+    height: 100%; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 10px; text-align: center;
+  }
+  .display-title {
+    margin: 0; font-size: clamp(22px, 5vmin, 52px); font-weight: 900;
+    color: var(--brand); letter-spacing: .06em; cursor: default;
+  }
+  /* 길게 누르는 동안 흐려진다 — 뭔가 일어나고 있다는 유일한 신호다 */
+  .display-title.holding { opacity: .4; transition: opacity 2s linear; }
+  .display-no {
+    font-size: clamp(120px, 40vmin, 400px); font-weight: 900; line-height: .95;
+    color: var(--brand-dark); font-variant-numeric: tabular-nums;
+  }
+  .display-no.pop { animation: call-pop 1.4s ease-out; }
+  @keyframes call-pop {
+    0%   { transform: scale(.55); opacity: 0; }
+    30%  { transform: scale(1.14); opacity: 1; }
+    45%  { opacity: .2; }
+    60%  { opacity: 1; }
+    75%  { opacity: .2; }
+    100% { transform: scale(1); opacity: 1; }
+  }
+  .display-line { margin: 0; font-size: clamp(18px, 4vmin, 40px); font-weight: 700; color: var(--ink); }
+  .display-empty { margin: 0; font-size: clamp(20px, 4vmin, 40px); color: var(--muted); }
+  .display-prev { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; margin-top: 8px; }
+  .display-prev-label { font-size: clamp(13px, 2vmin, 20px); color: var(--muted); }
+  .display-prev-no {
+    min-width: 2.2em; padding: 4px 12px; border-radius: 999px;
+    background: var(--panel); border: 2px solid var(--line); color: var(--muted);
+    font-size: clamp(16px, 3vmin, 30px); font-weight: 700; font-variant-numeric: tabular-nums;
+  }
+  /* 첫 진입 안내 — 브라우저 자동재생 정책상 한 번 건드려야 소리가 난다 */
+  .display-gate {
+    position: fixed; inset: 0; z-index: 50; width: 100%;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+    background: var(--bg); color: var(--ink); text-align: center; padding: 24px;
+  }
+  .display-gate-icon { font-size: clamp(48px, 12vmin, 120px); line-height: 1; }
+  .display-gate strong { font-size: clamp(22px, 5vmin, 48px); }
+  .display-gate small { font-size: clamp(14px, 2.6vmin, 24px); color: var(--muted); }
+  /* 움직임에 민감한 사람을 위해 연출만 끈다 — 번호는 그대로 크게 보인다 */
+  @media (prefers-reduced-motion: reduce) {
+    .display-no.pop { animation: none; }
+    .display-title.holding { transition: none; }
+  }
+
 </style>
 </head>
 <body>
@@ -578,6 +629,49 @@ function waitingOrders(orders) {
 
 function isLate(order, now, lateMinutes) {
   return now - order.createdAt > lateMinutes * 60 * 1000;
+}
+
+// ---- 호출 (PRD 3.3) ----
+// 완료된 주문을 최신순으로. readyAt이 없는 옛 데이터는 줄을 세울 수 없으니 뺀다.
+function recentCalls(orders, count) {
+  return orders
+    .filter((o) => o.status === 'ready' && o.readyAt)
+    .sort((a, b) => b.readyAt - a.readyAt)
+    .slice(0, count);
+}
+
+// 화면용 — 숫자를 그대로 쓴다. 손님과 학생이 번호표와 눈으로 맞춰야 한다.
+function callText(template, orderNo) {
+  return String(template).split('{번호}').join(String(orderNo));
+}
+
+// ---- 숫자를 한자어 수사로 (음성용) ----
+// 한국어 TTS는 '3번'을 세는 단위로 보고 [세 번]이라고 읽는다.
+// 주문번호는 횟수가 아니라 이름표이므로 [삼 번]이 맞다.
+const SINO_DIGITS = ['', '일', '이', '삼', '사', '오', '육', '칠', '팔', '구'];
+const SINO_UNITS = ['', '십', '백', '천'];
+
+function sinoKorean(n) {
+  const num = Math.floor(Math.abs(Number(n) || 0));
+  if (num === 0) return '영';
+
+  let out = '';
+  const digits = String(num).split('').reverse();   // 1의 자리부터
+  for (let i = digits.length - 1; i >= 0; i--) {
+    const d = Number(digits[i]);
+    if (d === 0) continue;
+    // 십·백·천 앞의 1은 읽지 않는다 (10 → '십', 100 → '백')
+    const head = (d === 1 && i > 0) ? '' : SINO_DIGITS[d];
+    out += head + (SINO_UNITS[i] || '');
+  }
+  return out;
+}
+
+// 음성용 — 번호만 한글 수사로 바꾼다.
+// 만 단위 이상은 다루지 않는다. 하루 주문번호가 9,999를 넘을 일이 없고,
+// 넘더라도 단위 없이 읽혀 알아들을 수는 있다.
+function speechText(template, orderNo) {
+  return String(template).split('{번호}').join(sinoKorean(orderNo));
 }
 
 // ===== 3. 백엔드 어댑터 =====
@@ -1735,7 +1829,7 @@ function showOrderNumber(orderNo) {
   if (orderNoTimer) clearTimeout(orderNoTimer);
   render();
   try {
-    const utter = new SpeechSynthesisUtterance(`${orderNo}번이에요`);
+    const utter = new SpeechSynthesisUtterance(`${sinoKorean(orderNo)}번이에요`);
     utter.lang = 'ko-KR';
     speechSynthesis.speak(utter);
   } catch {
@@ -1964,11 +2058,179 @@ function renderBaristaView(el) {
   }, 10000);
 }
 
+// ---- 호출 화면 (PRD 3.3) ----
+// 손님이 보는 화면이라 조작 요소를 두지 않는다.
+
+// 브라우저 자동재생 정책 — 손님이 화면을 한 번 건드리기 전에는 소리를 낼 수 없다.
+let displayReady = false;
+// 번호가 크게 튀어오르는 연출을 언제까지 이어 갈지.
+// 화면은 다시 그릴 때마다 통째로 새로 만들어지고, 저장 한 번에 구독이 여럿 반응해
+// render()가 연달아 여러 번 돈다. 그래서 '이번에 연출할까'를 한 번 쓰고 버리는
+// 플래그로 두면 바로 뒤의 다시 그리기가 연출을 지워버린다.
+// 대신 연출이 끝나는 시각을 적어 두고, 그때까지는 몇 번을 다시 그려도 이어 간다.
+const CALL_POP_MS = 1400;   // CSS의 call-pop 길이와 맞춘다
+let popUntil = 0;
+
+// AudioContext는 사용자 제스처 안에서 만들어야 잠기지 않는다.
+function audioContext() {
+  return (window.__ac ||= new (window.AudioContext || window.webkitAudioContext)());
+}
+
+// 차임음 — 오디오 파일 없이 WebAudio로 두 음을 낸다 (기내 안내방송 느낌)
+function playChime() {
+  if (!state.settings.chime) return;
+  try {
+    const ctx = audioContext();
+    const now = ctx.currentTime;
+    for (const [i, freq] of [880, 660].entries()) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.frequency.value = freq;
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0.0001, now + i * 0.35);
+      gain.gain.exponentialRampToValueAtTime(0.3, now + i * 0.35 + 0.03);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.35 + 0.5);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(now + i * 0.35);
+      osc.stop(now + i * 0.35 + 0.55);
+    }
+  } catch { /* 소리를 못 내는 기기에서는 조용히 넘어간다 */ }
+}
+
+function speak(text) {
+  try {
+    const u = new SpeechSynthesisUtterance(text);
+    u.lang = 'ko-KR';
+    // 볼륨 0은 "끄기"라는 뜻의 유효한 값이므로 || 로 기본값을 덮어쓰지 않는다.
+    const rate = Number(state.settings.ttsRate), volume = Number(state.settings.ttsVolume);
+    u.rate = Number.isFinite(rate) ? rate : CONFIG.defaults.ttsRate;
+    u.volume = Number.isFinite(volume) ? volume : CONFIG.defaults.ttsVolume;
+    speechSynthesis.speak(u);
+  } catch { /* 음성이 없는 기기에서는 조용히 넘어간다 */ }
+}
+
+// 호출 화면에는 상단바가 없어 '역할 바꾸기'를 누를 수 없다.
+// 손님이 무심코 빠져나가지 않도록, 제목을 2초 길게 눌러야만 나가지게 한다.
+function armDisplayExit(node) {
+  let timer = null;
+  const cancel = () => { clearTimeout(timer); node.classList.remove('holding'); };
+  node.addEventListener('pointerdown', () => {
+    cancel();
+    node.classList.add('holding');
+    timer = setTimeout(() => { cancel(); changeRole(); }, 2000);
+  });
+  for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) node.addEventListener(ev, cancel);
+  node.title = '2초 길게 누르면 역할 선택으로 돌아갑니다';
+}
+
+function buildDisplayGate() {
+  const gate = document.createElement('button');
+  gate.className = 'display-gate';
+  const icon = document.createElement('span');
+  icon.className = 'display-gate-icon';
+  icon.textContent = '\u{1F446}';
+  const strong = document.createElement('strong');
+  strong.textContent = '화면을 한 번 눌러 주세요';
+  const small = document.createElement('small');
+  small.textContent = '소리로 번호를 불러 드릴게요';
+  gate.append(icon, strong, small);
+  gate.onclick = () => {
+    displayReady = true;
+    // 이 제스처 안에서 오디오를 깨워 둔다. 실제 소리는 호출이 있을 때만 난다.
+    try { audioContext().resume(); } catch { /* 소리 없이도 화면은 쓴다 */ }
+    // 전체화면은 기기가 거절할 수 있다 (iOS Safari 등). 실패해도 그대로 쓴다.
+    try { document.documentElement.requestFullscreen?.().catch(() => {}); } catch { }
+    render();
+  };
+  return gate;
+}
+
+function renderDisplayView(el) {
+  const [top, ...rest] = recentCalls(state.orders, CONFIG.displayRecentCount);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'display-screen';
+
+  const title = document.createElement('h1');
+  title.className = 'display-title';
+  title.textContent = CONFIG.cafeName;
+  armDisplayExit(title);
+  wrap.appendChild(title);
+
+  if (!top) {
+    const hint = document.createElement('p');
+    hint.className = 'display-empty';
+    hint.textContent = '아직 준비된 음료가 없어요.';
+    wrap.appendChild(hint);
+  } else {
+    const no = document.createElement('div');
+    // 연출을 시작할지는 onOrdersChanged가 정한다. 여기서는 따라 그리기만 한다.
+    no.className = 'display-no' + (Date.now() < popUntil ? ' pop' : '');
+    // 화면에는 숫자를 그대로 — 손님이 번호표와 눈으로 맞춰야 한다.
+    no.textContent = top.orderNo;
+    wrap.appendChild(no);
+
+    const line = document.createElement('p');
+    line.className = 'display-line';
+    // 소리를 못 듣는 손님에게는 이 줄이 안내의 전부다.
+    line.setAttribute('aria-live', 'assertive');
+    line.textContent = callText(state.settings.ttsText, top.orderNo);
+    wrap.appendChild(line);
+
+    if (rest.length) {
+      const prev = document.createElement('div');
+      prev.className = 'display-prev';
+      const label = document.createElement('span');
+      label.className = 'display-prev-label';
+      label.textContent = '직전 호출';
+      prev.appendChild(label);
+      for (const o of rest) {
+        const chip = document.createElement('span');
+        chip.className = 'display-prev-no';
+        chip.textContent = o.orderNo;
+        prev.appendChild(chip);
+      }
+      wrap.appendChild(prev);
+    }
+  }
+
+  el.appendChild(wrap);
+  if (!displayReady) el.appendChild(buildDisplayGate());
+}
+
+// 새 호출 감지 — 주문 구독이 바뀔 때마다 불린다.
+let lastCallReadyAt = 0;     // 이미 반응을 끝낸 가장 최근 완료 시각
+let displayPrimed = false;
+function onOrdersChanged() {
+  const [top] = recentCalls(state.orders, 1);
+
+  // 첫 콜백에서는 이미 쌓여 있던 주문을 '이미 부른 것'으로 삼는다.
+  // 그래야 호출 화면을 새로고침해도 과거 주문이 갑자기 울리지 않는다.
+  if (!displayPrimed) {
+    displayPrimed = true;
+    lastCallReadyAt = top ? top.readyAt : 0;
+    return;
+  }
+
+  // 완료 시각이 더 최근일 때만 새 호출이다.
+  // 제조에서 '되돌리기'를 누르면 맨 앞이 이전 번호로 바뀌는데, 그건 새로 나온
+  // 음료가 아니다. 이미 받아간 손님의 번호를 다시 부르면 안 된다.
+  if (!top || !(top.readyAt > lastCallReadyAt)) return;
+  lastCallReadyAt = top.readyAt;
+
+  // 소리는 손님이 보는 화면에서만 난다. 주문·제조 화면에서 울리면 방해가 된다.
+  if (state.role !== 'display') return;
+  popUntil = Date.now() + CALL_POP_MS;
+  if (!displayReady) return;   // 아직 화면을 한 번도 누르지 않았다
+  playChime();
+  // 차임음이 끝난 뒤에 말해야 둘이 겹치지 않는다.
+  setTimeout(() => speak(speechText(state.settings.ttsText, top.orderNo)), 900);
+}
+
 // ---- 라우팅 ----
 const VIEWS = {
   order:   { render: renderOrderView },
   barista: { render: renderBaristaView },
-  display: { render: (el) => { el.textContent = '호출 화면 준비 중'; } },
+  display: { render: renderDisplayView },
   admin: {
     render(el) {
       if (!adminUnlocked) { renderPinGate(el); return; }
@@ -2213,6 +2475,58 @@ test('기준 시간을 넘긴 주문을 지연으로 본다', () => {
   eq(isLate({ createdAt: 8 * 60 * 1000 }, now, 5), false, '2분 경과 < 기준 5분');
 });
 
+// ---- 호출 ----
+test('최근 호출을 최신 순으로 자른다', () => {
+  const orders = [
+    { id: 'a', status: 'ready', readyAt: 100 },
+    { id: 'b', status: 'ready', readyAt: 300 },
+    { id: 'c', status: 'waiting', readyAt: null },
+    { id: 'd', status: 'ready', readyAt: 200 },
+  ];
+  eq(recentCalls(orders, 2).map((o) => o.id), ['b', 'd']);
+});
+
+test('호출 문구의 {번호}를 바꾼다', () => {
+  eq(callText('{번호}번 손님, 음료 나왔습니다.', 7), '7번 손님, 음료 나왔습니다.');
+  eq(callText('{번호}번요! {번호}번!', 3), '3번요! 3번!', '여러 번 나와도 모두 바꾼다');
+  eq(callText('음료 나왔습니다.', 3), '음료 나왔습니다.', '{번호}가 없어도 그대로 쓴다');
+});
+
+// ---- 숫자를 한자어 수사로 (음성용) ----
+test('한 자리 수를 읽는다', () => {
+  eq(sinoKorean(1), '일');
+  eq(sinoKorean(3), '삼');
+  eq(sinoKorean(6), '육');
+  eq(sinoKorean(9), '구');
+});
+
+test('십 단위에서 앞의 1을 생략한다', () => {
+  eq(sinoKorean(10), '십', '십일이 아니라 십');
+  eq(sinoKorean(11), '십일');
+  eq(sinoKorean(15), '십오');
+  eq(sinoKorean(20), '이십');
+  eq(sinoKorean(25), '이십오');
+  eq(sinoKorean(99), '구십구');
+});
+
+test('백·천 단위도 같은 규칙을 따른다', () => {
+  eq(sinoKorean(100), '백', '일백이 아니라 백');
+  eq(sinoKorean(101), '백일');
+  eq(sinoKorean(110), '백십');
+  eq(sinoKorean(120), '백이십');
+  eq(sinoKorean(999), '구백구십구');
+  eq(sinoKorean(1000), '천');
+  eq(sinoKorean(1234), '천이백삼십사');
+});
+
+test('음성 문구는 번호를 한글 수사로 바꾼다', () => {
+  eq(speechText('{번호}번 손님, 음료 나왔습니다.', 3),
+     '삼번 손님, 음료 나왔습니다.', 'TTS가 [세 번]으로 읽지 않게 한다');
+  eq(speechText('{번호}번 손님, 음료 나왔습니다.', 25),
+     '이십오번 손님, 음료 나왔습니다.');
+  eq(speechText('음료 나왔습니다.', 3), '음료 나왔습니다.');
+});
+
 // ===== 7. 시작 =====
 if (new URLSearchParams(location.search).has('selftest')) {
   runSelfTest();
@@ -2231,7 +2545,12 @@ if (new URLSearchParams(location.search).has('selftest')) {
   }
 
   for (const name of ['menus', 'ingredients', 'orders']) {
-    state.backend.subscribe(name, (docs) => { state[name] = docs; render(); });
+    state.backend.subscribe(name, (docs) => {
+      state[name] = docs;
+      // 호출 연출은 그리기 전에 판정해야 새 번호가 곧바로 크게 떠오른다.
+      if (name === 'orders') onOrdersChanged();
+      render();
+    });
   }
   state.backend.subscribe('settings', (docs) => {
     state.settings = { ...CONFIG.defaults, ...(docs.find((d) => d.id === 'app') || {}) };
