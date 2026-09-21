@@ -311,6 +311,35 @@
     body.print-shopping .shopping-actions { display: none; }
   }
 
+  /* ---- 관리 화면 : 기록 (PRD 3.5 · Task 16) ----
+     막대는 CSS로만 그리고 숫자를 늘 함께 적는다 (길이·색에만 기대지 않는다). */
+  .rec-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 8px; }
+  .rec-bar .seg button { min-height: 44px; }
+  .rec-dates { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .rec-dates input { min-height: 44px; padding: 6px 8px; border: 2px solid var(--line); border-radius: 10px; font-size: calc(14px * var(--scale)); }
+  .rec-meta { color: var(--muted); font-size: calc(13px * var(--scale)); margin: 0 0 14px; }
+  .rec-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 10px; margin-bottom: 18px; }
+  .rec-card { background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 12px; }
+  .rec-card small { display: block; color: var(--muted); font-size: calc(13px * var(--scale)); }
+  .rec-card b { font-size: calc(22px * var(--scale)); color: var(--brand-dark); }
+  .rec-sec { margin-bottom: 20px; }
+  .rec-sec h3 { margin: 0 0 10px; font-size: calc(17px * var(--scale)); }
+  .bar-row { display: grid; grid-template-columns: minmax(80px, 30%) 1fr auto; align-items: center; gap: 10px; margin-bottom: 6px; }
+  .bar-name { font-size: calc(14px * var(--scale)); overflow-wrap: anywhere; }
+  .bar-track { height: 18px; background: var(--bg); border-radius: 999px; overflow: hidden; }
+  .bar { display: block; height: 100%; background: var(--brand); border-radius: 999px; }
+  .bar-qty { font-size: calc(14px * var(--scale)); min-width: 3.5em; text-align: right; }
+  .hour-chart { display: flex; align-items: flex-end; gap: 4px; height: 170px; padding-top: 4px; overflow-x: auto; }
+  .hour-col { flex: 1 0 28px; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 3px; }
+  .hour-col .v { width: 70%; background: var(--brand); border-radius: 6px 6px 0 0; min-height: 2px; }
+  .hour-col small { font-size: calc(12px * var(--scale)); color: var(--muted); }
+  .hour-col b { font-size: calc(12px * var(--scale)); }
+  .rec-table { width: 100%; border-collapse: collapse; font-size: calc(14px * var(--scale)); }
+  .rec-table th, .rec-table td { padding: 8px 6px; border-bottom: 1px solid var(--line); text-align: right; }
+  .rec-table th:first-child, .rec-table td:first-child { text-align: left; }
+  .rec-table th { color: var(--muted); font-weight: 700; }
+  .rec-list { margin: 0; padding-left: 20px; font-size: calc(14px * var(--scale)); line-height: 1.8; }
+
   /* ---- 주문 화면 (PRD 3.1) ----
      AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
@@ -672,6 +701,7 @@ const CONFIG = {
   photoQuality: 0.7,             // JPEG 품질
   photoMaxBytes: 300 * 1024,     // 이보다 크면 품질을 낮춰 재시도
   undoSeconds: 6,
+  liveOrderDays: 7,              // 평소 화면이 받아 오는 주문 기간 (일). 그보다 오래된 주문은 기록 화면에서만 불러온다
   adminIdleMinutes: 3,           // 관리 화면을 이만큼 아무도 건드리지 않으면 다시 잠근다                // "완료" 되돌리기 가능 시간 (초)
   recentOrderCount: 12,          // 주문 화면 최근 주문 표시 개수
   displayReadyCount: 10,         // 호출 화면 '준비 완료'에 남겨 둘 번호 개수 (넘치면 오래된 것부터 빠진다)
@@ -1040,6 +1070,36 @@ function summarize(orders, from, to) {
   };
 }
 
+// ---- 기록 화면 계산 (Task 16) ----
+// 기간 버튼. 이번 주는 월요일부터 (학교 한 주의 시작).
+function rangeOf(kind, today) {
+  if (kind === 'week') {
+    const [y, m, d] = today.split('-').map(Number);
+    const date = new Date(y, m - 1, d);
+    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+    return { from: businessDateOf(date), to: today };
+  }
+  if (kind === 'month') return { from: `${today.slice(0, 8)}01`, to: today };
+  return { from: today, to: today };
+}
+
+// 재료별 입고 · 사용 · 조정 합계. 취소와 되살리기는 판매 차감과 상쇄되어 '실제로 쓴 양'만 남는다.
+function stockLedger(logs, ingredients) {
+  const rows = new Map(ingredients.map((i) => [i.id, {
+    id: i.id, name: i.name, unit: i.unit, current: Number(i.current) || 0, restock: 0, used: 0, adjust: 0,
+  }]));
+  for (const log of logs) {
+    for (const [id, d] of Object.entries(log.delta || {})) {
+      const row = rows.get(id);
+      if (!row) continue;                       // 지워진 재료
+      if (log.type === 'restock') row.restock += d;
+      else if (log.type === 'adjust') row.adjust += d;
+      else row.used -= d;                       // sale(-) · cancel(+) · restore(-)
+    }
+  }
+  return [...rows.values()].sort((a, b) => String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
 // ---- CSV ----
 function csvCell(v) {
   const s = v === null || v === undefined ? '' : String(v);
@@ -1093,6 +1153,15 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
       return () => {
         listeners[name] = listeners[name].filter((f) => f !== cb);
       };
+    },
+
+    // field가 from 이상인 문서만 (Firestore 모드와 같은 결과를 내도록 맞춘다)
+    subscribeSince(name, field, from, cb) {
+      return api.subscribe(name, (docs) => cb(docs.filter((d) => d[field] >= from)));
+    },
+
+    queryRangeSync(name, field, from, to) {
+      return docsOf(load(), name).filter((d) => d[field] >= from && d[field] <= to);
     },
 
     addSync(name, data) {
@@ -1160,6 +1229,7 @@ function createLocalBackend(storageKey = CONFIG.localStorageKey) {
   api.issueOrderNo = async (bd) => api.issueOrderNoSync(bd);
   api.resetOrderNo = async (bd, v) => api.resetOrderNoSync(bd, v);
   api.getCounter = async (bd) => api.getCounterSync(bd);
+  api.queryRange = async (n, f, from, to) => api.queryRangeSync(n, f, from, to);
   api.clear = async () => api.clearSync();
   return api;
 }
@@ -1196,6 +1266,20 @@ async function createFirestoreBackend() {
       return fs.onSnapshot(col(name), (snap) => {
         cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
       });
+    },
+
+    // 학기 내내 쌓이는 컬렉션(주문)은 최근 것만 실시간으로 받는다.
+    // 통째로 구독하면 기기마다 앱을 열 때 수천 건을 읽어 하루 무료 한도를 넘긴다.
+    subscribeSince(name, field, from, cb) {
+      return fs.onSnapshot(fs.query(col(name), fs.where(field, '>=', from)), (snap) => {
+        cb(snap.docs.map((d) => ({ id: d.id, ...d.data() })));
+      });
+    },
+
+    // 기록 화면용 — 고른 기간만 그때 한 번 읽는다
+    async queryRange(name, field, from, to) {
+      const snap = await fs.getDocs(fs.query(col(name), fs.where(field, '>=', from), fs.where(field, '<=', to)));
+      return snap.docs.map((d) => ({ id: d.id, ...d.data() }));
     },
 
     async add(name, data) {
@@ -1701,7 +1785,7 @@ function watchAdminIdle() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 }
 let pinInput = '';
-let adminTab = 'menu';   // 'menu' | 'ingredients' | 'staff' | 'settings'
+let adminTab = 'menu';   // 'menu' | 'ingredients' | 'records' | 'staff' | 'settings'
 
 function renderPinGate(el) {
   el.innerHTML = `
@@ -1767,6 +1851,7 @@ function renderAdminTabs(el) {
       <div class="admin-tabs" role="tablist">
         <button class="admin-tab" data-tab="menu">🍹 메뉴</button>
         <button class="admin-tab" data-tab="ingredients">🥛 재료</button>
+        <button class="admin-tab" data-tab="records">📊 기록</button>
         <button class="admin-tab" data-tab="staff">🧑‍🍳 담당</button>
         <button class="admin-tab" data-tab="settings">⚙️ 설정</button>
       </div>
@@ -1780,6 +1865,7 @@ function renderAdminTabs(el) {
 
   const body = el.querySelector('#admin-body');
   if (adminTab === 'ingredients') renderIngredientTab(body);
+  else if (adminTab === 'records') renderRecordsTab(body);
   else if (adminTab === 'staff') renderStaffTab(body);
   else if (adminTab === 'settings') renderSettingsTab(body);
   else renderMenuTab(body);
@@ -2315,6 +2401,291 @@ function printShoppingList() {
   const done = () => { document.body.classList.remove('print-shopping'); window.removeEventListener('afterprint', done); };
   window.addEventListener('afterprint', done);
   window.print();
+}
+
+// ---- 기록 탭 (PRD 3.5 · Task 16) ----
+// 고른 기간의 주문과 재고 기록을 그때 불러온다. 다시 그릴 때마다 읽지 않도록 기간별로 담아 둔다.
+let recordsKind = 'today';                 // 'today' | 'week' | 'month' | 'custom'
+const recordsCustom = { from: '', to: '' };
+let recordsCache = null;                   // { key, orders, logs, loadedAt } | { key, error }
+let recordsLoading = false;
+
+const STATUS_LABEL = { waiting: '제조 중', ready: '준비 완료', pickedUp: '수령 완료', cancelled: '취소' };
+
+function recordsRange() {
+  const today = businessDateOf();
+  if (recordsKind === 'custom' && recordsCustom.from && recordsCustom.to) {
+    const [from, to] = [recordsCustom.from, recordsCustom.to].sort();
+    return { from, to };
+  }
+  return rangeOf(recordsKind === 'custom' ? 'today' : recordsKind, today);
+}
+
+async function loadRecords(force = false) {
+  const { from, to } = recordsRange();
+  const key = `${from}~${to}`;
+  if (recordsLoading || (!force && recordsCache?.key === key)) return;
+  recordsLoading = true;
+  render();
+  try {
+    const [orders, logs] = await Promise.all([
+      state.backend.queryRange('orders', 'businessDate', from, to),
+      state.backend.queryRange('stockLogs', 'businessDate', from, to),
+    ]);
+    recordsCache = { key, orders, logs, loadedAt: Date.now() };
+  } catch (err) {
+    console.error(err);
+    recordsCache = { key, error: true };
+  } finally {
+    recordsLoading = false;
+    render();
+  }
+}
+
+const hhmm = (ts) => new Date(ts).toTimeString().slice(0, 5);
+const itemsText = (o) => (o.items || []).map((it) => `${it.name}×${it.qty}`).join(', ');
+
+function renderRecordsTab(body) {
+  const { from, to } = recordsRange();
+  const key = `${from}~${to}`;
+  const showPrice = state.settings.priceMode && state.settings.priceMode !== 'off';
+  body.innerHTML = '';
+
+  // ---- 기간 고르기 ----
+  const bar = document.createElement('div');
+  bar.className = 'rec-bar';
+  const seg = document.createElement('div');
+  seg.className = 'seg';
+  seg.setAttribute('role', 'group');
+  seg.setAttribute('aria-label', '기간');
+  for (const [k, label] of [['today', '오늘'], ['week', '이번 주'], ['month', '이번 달'], ['custom', '기간 지정']]) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.textContent = label;
+    b.setAttribute('aria-pressed', String(recordsKind === k));
+    b.onclick = () => {
+      recordsKind = k;
+      if (k === 'custom' && !recordsCustom.from) { recordsCustom.from = from; recordsCustom.to = to; }
+      render();
+    };
+    seg.appendChild(b);
+  }
+  bar.appendChild(seg);
+  if (recordsKind === 'custom') {
+    const dates = document.createElement('div');
+    dates.className = 'rec-dates';
+    for (const [k, label] of [['from', '부터'], ['to', '까지']]) {
+      const input = document.createElement('input');
+      input.type = 'date';
+      input.value = recordsCustom[k];
+      input.setAttribute('aria-label', `기간 ${label}`);
+      input.onchange = () => { recordsCustom[k] = input.value; render(); };
+      const span = document.createElement('span');
+      span.textContent = label;
+      dates.append(input, span);
+    }
+    bar.appendChild(dates);
+  }
+  const refresh = document.createElement('button');
+  refresh.className = 'btn ghost small';
+  refresh.textContent = '새로 불러오기';
+  refresh.onclick = () => loadRecords(true);
+  bar.appendChild(refresh);
+  body.appendChild(bar);
+
+  const meta = document.createElement('p');
+  meta.className = 'rec-meta';
+  meta.textContent = from === to ? `${from} 하루` : `${from} ~ ${to}`;
+  body.appendChild(meta);
+
+  if (recordsLoading || recordsCache?.key !== key) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '기록을 불러오는 중이에요…';
+    body.appendChild(p);
+    if (!recordsLoading) loadRecords();
+    return;
+  }
+  if (recordsCache.error) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '기록을 불러오지 못했어요. 인터넷 연결을 확인하고 새로 불러오기를 눌러 주세요.';
+    body.appendChild(p);
+    return;
+  }
+  meta.textContent += ` · ${hhmm(recordsCache.loadedAt)}에 불러옴`;
+
+  const { orders, logs } = recordsCache;
+  const sum = summarize(orders, from, to);
+
+  // ---- 요약 ----
+  const cards = document.createElement('div');
+  cards.className = 'rec-cards';
+  const avg = sum.dayCount ? Math.round((sum.totalQty / sum.dayCount) * 10) / 10 : 0;
+  const cardData = [
+    ['주문', `${sum.orderCount}건`], ['판매', `${sum.totalQty}잔`], ['운영한 날', `${sum.dayCount}일`],
+    ['하루 평균', `${avg}잔`], ['취소', `${sum.cancelledCount}건`],
+  ];
+  if (showPrice) cardData.push(['판매 금액', `${sum.totalAmount.toLocaleString('ko-KR')}원`]);
+  for (const [label, value] of cardData) {
+    const c = document.createElement('div');
+    c.className = 'rec-card';
+    const sm = document.createElement('small');
+    sm.textContent = label;
+    const b = document.createElement('b');
+    b.textContent = value;
+    c.append(sm, b);
+    cards.appendChild(c);
+  }
+  body.appendChild(cards);
+
+  const section = (title) => {
+    const sec = document.createElement('section');
+    sec.className = 'rec-sec';
+    const h = document.createElement('h3');
+    h.textContent = title;
+    sec.appendChild(h);
+    body.appendChild(sec);
+    return sec;
+  };
+
+  // ---- 메뉴별 판매량 ----
+  const menuSec = section('메뉴별 판매량');
+  if (sum.byMenu.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'rec-meta';
+    p.textContent = '이 기간에는 판매가 없어요.';
+    menuSec.appendChild(p);
+  } else {
+    const max = sum.byMenu[0].qty || 1;
+    for (const m of sum.byMenu) {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const name = document.createElement('span');
+      name.className = 'bar-name';
+      name.textContent = m.name;
+      const track = document.createElement('span');
+      track.className = 'bar-track';
+      track.setAttribute('aria-hidden', 'true');
+      const barEl = document.createElement('span');
+      barEl.className = 'bar';
+      barEl.style.width = `${(m.qty / max) * 100}%`;
+      track.appendChild(barEl);
+      const qty = document.createElement('b');
+      qty.className = 'bar-qty';
+      qty.textContent = showPrice ? `${m.qty}잔 · ${m.amount.toLocaleString('ko-KR')}원` : `${m.qty}잔`;
+      row.append(name, track, qty);
+      menuSec.appendChild(row);
+    }
+  }
+
+  // ---- 시간대별 ----
+  if (sum.totalQty > 0) {
+    const hourSec = section('시간대별 판매');
+    const sold = sum.byHour.filter((h) => h.qty > 0).map((h) => h.hour);
+    const start = Math.min(8, ...sold), end = Math.max(17, ...sold);   // 학교 일과(8~17시)를 기본으로
+    const maxH = Math.max(...sum.byHour.map((h) => h.qty), 1);
+    const chart = document.createElement('div');
+    chart.className = 'hour-chart';
+    for (let h = start; h <= end; h++) {
+      const q = sum.byHour[h].qty;
+      const col = document.createElement('div');
+      col.className = 'hour-col';
+      const num = document.createElement('b');
+      num.textContent = q ? String(q) : '';
+      const v = document.createElement('span');
+      v.className = 'v';
+      v.setAttribute('aria-hidden', 'true');
+      v.style.height = `${(q / maxH) * 75}%`;
+      const lab = document.createElement('small');
+      lab.textContent = `${h}시`;
+      col.append(num, v, lab);
+      col.setAttribute('aria-label', `${h}시 ${q}잔`);
+      chart.appendChild(col);
+    }
+    hourSec.appendChild(chart);
+  }
+
+  // ---- 재료 사용 ----
+  if (state.ingredients.length) {
+    const ingSec = section('재료 입고 · 사용');
+    const table = document.createElement('table');
+    table.className = 'rec-table';
+    table.innerHTML = '<thead><tr><th>재료</th><th>입고</th><th>사용</th><th>조정</th><th>지금 남은 양</th></tr></thead>';
+    const tb = document.createElement('tbody');
+    for (const r of stockLedger(logs, state.ingredients)) {
+      const tr = document.createElement('tr');
+      for (const v of [r.name, fmtQty(r.restock, r.unit), fmtQty(r.used, r.unit), fmtQty(r.adjust, r.unit), fmtQty(r.current, r.unit)]) {
+        const td = document.createElement('td');
+        td.textContent = v;
+        tr.appendChild(td);
+      }
+      tb.appendChild(tr);
+    }
+    table.appendChild(tb);
+    ingSec.appendChild(table);
+  }
+
+  // ---- 취소 내역 ----
+  const cancelled = orders.filter((o) => inRange(o, from, to) && o.status === 'cancelled')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  if (cancelled.length) {
+    const cSec = section(`취소 내역 (${cancelled.length}건)`);
+    const ul = document.createElement('ul');
+    ul.className = 'rec-list';
+    for (const o of cancelled) {
+      const li = document.createElement('li');
+      li.textContent = `${o.businessDate.slice(5)} ${hhmm(o.createdAt)} · ${o.orderNo}번 · ${itemsText(o)}`;
+      ul.appendChild(li);
+    }
+    cSec.appendChild(ul);
+  }
+
+  // ---- 내려받기 ----
+  const dl = section('엑셀로 내려받기');
+  const span = from === to ? from : `${from}_${to}`;
+  const act = document.createElement('div');
+  act.className = 'shopping-actions';
+  const b1 = document.createElement('button');
+  b1.className = 'btn ghost small';
+  b1.textContent = '메뉴별 요약 (CSV)';
+  b1.onclick = () => downloadCsv(`${CONFIG.cafeName}_요약_${span}.csv`, [
+    ['기간', from, to],
+    [],
+    ['메뉴', '판매 잔 수', ...(showPrice ? ['금액'] : [])],
+    ...sum.byMenu.map((m) => [m.name, m.qty, ...(showPrice ? [m.amount] : [])]),
+    [],
+    ['합계', sum.totalQty, ...(showPrice ? [sum.totalAmount] : [])],
+    ['주문 건수', sum.orderCount],
+    ['취소 건수', sum.cancelledCount],
+  ]);
+  const b2 = document.createElement('button');
+  b2.className = 'btn ghost small';
+  b2.textContent = '주문 내역 (CSV)';
+  b2.onclick = () => downloadCsv(`${CONFIG.cafeName}_주문내역_${span}.csv`, [
+    ['영업일', '주문 시각', '주문번호', '상태', '메뉴', '잔 수', ...(showPrice ? ['금액'] : [])],
+    ...orders.filter((o) => inRange(o, from, to))
+      .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
+      .map((o) => [
+        o.businessDate, hhmm(o.createdAt), o.orderNo, STATUS_LABEL[o.status] || o.status, itemsText(o),
+        (o.items || []).reduce((n, it) => n + (Number(it.qty) || 0), 0),
+        ...(showPrice ? [o.total || 0] : []),
+      ]),
+  ]);
+  act.append(b1, b2);
+  dl.appendChild(act);
+}
+
+function downloadCsv(filename, rows) {
+  // 엑셀에서 한글이 깨지지 않도록 BOM을 붙인다
+  const blob = new Blob(['\uFEFF' + toCsv(rows)], { type: 'text/csv;charset=utf-8;' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 // ---- 담당 탭 ----
@@ -4204,6 +4575,31 @@ test('CSV는 줄바꿈으로 이어붙인다', () => {
   eq(toCsv([['메뉴', '잔'], ['라떼', 3]]), '메뉴,잔\n라떼,3');
 });
 
+// ---- 기록 화면 계산 (Task 16) ----
+test('기간 버튼: 오늘 · 이번 주(월요일부터) · 이번 달', () => {
+  eq(rangeOf('today', '2026-09-23'), { from: '2026-09-23', to: '2026-09-23' });
+  eq(rangeOf('week', '2026-09-23'), { from: '2026-09-21', to: '2026-09-23' }, '수요일이면 그 주 월요일부터');
+  eq(rangeOf('week', '2026-09-21').from, '2026-09-21', '월요일이면 그날부터');
+  eq(rangeOf('week', '2026-09-27').from, '2026-09-21', '일요일은 앞 월요일부터');
+  eq(rangeOf('month', '2026-09-23'), { from: '2026-09-01', to: '2026-09-23' });
+});
+
+test('재료별로 입고 · 사용 · 조정을 합산한다 (취소·되살리기는 사용량에서 상쇄)', () => {
+  const ings = [{ id: 'milk', name: '우유', unit: 'ml', current: 700 }, { id: 'cup', name: '컵', unit: '개', current: 5 }];
+  const logs = [
+    { type: 'restock', delta: { milk: 1000 } },
+    { type: 'sale',    delta: { milk: -300, cup: -2 } },
+    { type: 'sale',    delta: { milk: -150 } },
+    { type: 'cancel',  delta: { milk: 150 } },
+    { type: 'adjust',  delta: { cup: -1 } },
+    { type: 'sale',    delta: { gone: -5 } },   // 지워진 재료
+  ];
+  eq(stockLedger(logs, ings), [
+    { id: 'milk', name: '우유', unit: 'ml', current: 700, restock: 1000, used: 300, adjust: 0 },
+    { id: 'cup',  name: '컵',   unit: '개', current: 5,   restock: 0,    used: 2,   adjust: -1 },
+  ], '재료 탭과 같은 가나다순');
+});
+
 // ===== 7. 시작 =====
 if (new URLSearchParams(location.search).has('selftest')) {
   runSelfTest();
@@ -4236,14 +4632,18 @@ if (new URLSearchParams(location.search).has('selftest')) {
     }
   }
 
-  for (const name of ['menus', 'ingredients', 'orders']) {
-    state.backend.subscribe(name, (docs) => {
-      state[name] = docs;
-      // 호출 연출은 그리기 전에 판정해야 새 번호가 곧바로 크게 떠오른다.
-      if (name === 'orders') onOrdersChanged();
-      render();
-    });
+  for (const name of ['menus', 'ingredients']) {
+    state.backend.subscribe(name, (docs) => { state[name] = docs; render(); });
   }
+  // 주문은 최근 며칠 것만 실시간으로 받는다 — 끝나지 않은 주문과 오늘 기록을 보기에 충분하다.
+  // 더 오래된 주문은 관리 → 기록에서 고른 기간만 불러온다.
+  const liveSince = businessDateOf(new Date(Date.now() - CONFIG.liveOrderDays * 24 * 60 * 60 * 1000));
+  state.backend.subscribeSince('orders', 'businessDate', liveSince, (docs) => {
+    state.orders = docs;
+    // 호출 연출은 그리기 전에 판정해야 새 번호가 곧바로 크게 떠오른다.
+    onOrdersChanged();
+    render();
+  });
   state.backend.subscribe('settings', (docs) => {
     state.settings = { ...CONFIG.defaults, ...(docs.find((d) => d.id === 'app') || {}) };
     // 이 기기가 직접 고른 글자 크기가 없을 때만 선생님의 기본값을 따라간다.
