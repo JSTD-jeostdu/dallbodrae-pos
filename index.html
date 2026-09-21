@@ -630,7 +630,8 @@ const CONFIG = {
   photoMaxPx: 400,               // 사진 리사이즈 한 변 (px)
   photoQuality: 0.7,             // JPEG 품질
   photoMaxBytes: 300 * 1024,     // 이보다 크면 품질을 낮춰 재시도
-  undoSeconds: 6,                // "완료" 되돌리기 가능 시간 (초)
+  undoSeconds: 6,
+  adminIdleMinutes: 3,           // 관리 화면을 이만큼 아무도 건드리지 않으면 다시 잠근다                // "완료" 되돌리기 가능 시간 (초)
   recentOrderCount: 12,          // 주문 화면 최근 주문 표시 개수
   displayReadyCount: 10,         // 호출 화면 '준비 완료'에 남겨 둘 번호 개수 (넘치면 오래된 것부터 빠진다)
   displayWaitingCount: 12,       // 호출 화면 '제조 중'에 보여줄 번호 개수 (넘치면 '외 N건')
@@ -1304,6 +1305,9 @@ function setFontScale(key) {
 
 // ---- 역할 ----
 function setRole(role) {
+  // 관리 화면에서 나가면 곧바로 잠근다. 선생님이 나간 뒤 학생이 '관리'를 눌러도
+  // 비밀번호 없이 들어가지 못하게 한다.
+  if (role !== 'admin') lockAdmin();
   state.role = role;
   if (role) localStorage.setItem(CONFIG.roleKey, role);
   else localStorage.removeItem(CONFIG.roleKey);
@@ -1364,9 +1368,9 @@ function renderGuideView(el) {
       <section class="card">
         <h3>② 처음 한 번만 하면 되는 일</h3>
         <ol>
-          <li>관리 화면에 들어갑니다. 처음 비밀번호는 <b>1234</b>입니다.</li>
+          <li>관리 화면에 들어갑니다. 처음 비밀번호는 앱을 준비한 선생님께 받으세요. <b>이 안내는 학생도 열 수 있어서 비밀번호를 적지 않았어요.</b></li>
           <li><b>메뉴</b> 탭에서 파는 음료를 등록합니다. 사진은 휴대폰으로 찍은 걸 그대로 올리면 앱이 알아서 줄입니다.</li>
-          <li><b>설정</b> 탭에서 비밀번호를 바꿉니다. 학생이 실수로 메뉴를 지우지 않게 하는 잠금장치예요.</li>
+          <li><b>설정</b> 탭에서 비밀번호를 꼭 바꿉니다. 학생이 실수로 메뉴를 지우지 않게 하는 잠금장치예요. 관리 화면은 나가거나 3분 동안 쓰지 않으면 다시 잠깁니다.</li>
         </ol>
       </section>
 
@@ -1426,9 +1430,38 @@ function renderGuideView(el) {
 // ---- 관리 화면 (PRD 3.6) ----
 // 선생님이 코드를 열지 않고 메뉴·담당·설정을 바꾸는 유일한 경로다.
 
-// 학생이 실수로 들어가 메뉴를 지우는 일을 막는 잠금장치다.
-// 보안이 목적이 아니므로 세션 단위로만 기억한다.
-let adminUnlocked = sessionStorage.getItem('dallbodrae-admin') === 'ok';
+// 학생이 실수로 들어가 메뉴를 지우는 일을 막는 잠금장치다 (보안 장치는 아니다).
+// 풀린 상태는 어디에도 저장하지 않는다 — 새로고침하거나, 관리 화면을 나가거나,
+// 한동안 아무도 건드리지 않으면 다시 비밀번호를 묻는다.
+let adminUnlocked = false;
+let adminLastTouch = 0;
+
+function lockAdmin() {
+  adminUnlocked = false;
+  pinInput = '';
+}
+
+// 관리 화면을 켜 둔 채 자리를 비우면 저절로 잠근다.
+// 열려 있던 입력창(메뉴 편집 · 확인창)도 닫는다 — 잠긴 뒤에 누가 '저장'을 누르면 안 된다.
+function watchAdminIdle() {
+  const touch = () => { adminLastTouch = Date.now(); };
+  for (const ev of ['pointerdown', 'keydown', 'wheel']) {
+    document.addEventListener(ev, touch, { capture: true, passive: true });
+  }
+  const check = () => {
+    if (state.role !== 'admin' || !adminUnlocked) return;
+    if (Date.now() - adminLastTouch < CONFIG.adminIdleMinutes * 60 * 1000) return;
+    lockAdmin();
+    for (const m of document.querySelectorAll('.modal-back')) m.remove();
+    if (guideOpen) guideOpen = false;
+    render();
+    toast('잠시 쓰지 않아서 관리 화면을 잠갔어요.', { ms: 6000 });
+  };
+  setInterval(check, 10 * 1000);
+  // 화면이 가려져 있으면 브라우저가 타이머를 늦춘다 (다른 앱으로 갔다가 돌아온 경우).
+  // 다시 보이는 순간 먼저 검사해야, 돌아와서 첫 손길이 풀린 관리 화면에 닿지 않는다.
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
+}
 let pinInput = '';
 let adminTab = 'menu';   // 'menu' | 'staff' | 'settings'
 
@@ -1463,8 +1496,8 @@ function renderPinGate(el) {
   function check() {
     const expected = String(state.settings.pin || CONFIG.defaults.pin);
     if (pinInput === expected) {
-      sessionStorage.setItem('dallbodrae-admin', 'ok');
       adminUnlocked = true;
+      adminLastTouch = Date.now();
       pinInput = '';
       render();
     } else {
@@ -3505,6 +3538,7 @@ if (new URLSearchParams(location.search).has('selftest')) {
     b.onclick = () => setFontScale(b.dataset.scale);
   }
   document.getElementById('btn-change-role').onclick = changeRole;
+  watchAdminIdle();
 
   setRole(localStorage.getItem(CONFIG.roleKey) || null);
 }
