@@ -430,6 +430,11 @@
   .late-badge { display: none; font-size: calc(18px * var(--scale)); }
   .order-card.late .late-badge { display: inline; }
   .order-card.late .order-elapsed { color: var(--danger); font-weight: 700; }
+  .pickup-head {
+    margin: 28px 0 12px; padding-top: 18px; border-top: 2px dashed var(--line);
+    font-size: calc(18px * var(--scale)); color: var(--ok);
+  }
+  .pickup-card { border-color: var(--ok); }
   /* ---- 호출 화면 (PRD 3.3) ----
      손님이 멀리서 보는 화면이다. 여기서는 글자 크기 3단계(--scale)를 곱하지 않는다 —
      이미 화면이 허락하는 최대치(vmin)까지 키워 두었고, 배율을 한 번 더 곱하면
@@ -771,6 +776,11 @@ function displayBoard(orders, readyMax, waitingMax) {
   };
 }
 
+// 손님을 기다리는 완료 주문 — 먼저 부른 것부터 (오래 기다린 손님이 위에 온다)
+function readyQueue(orders) {
+  return orders.filter((o) => o.status === 'ready').sort((a, b) => callTime(a) - callTime(b));
+}
+
 // ---- 매니저 보드 (Task 11.5) ----
 // 끝나지 않은 주문(제조 중 · 준비 완료)은 날짜와 상관없이 모두 보여준다 — 어제 처리 못 한
 // 주문이 조용히 사라지면 안 된다. 끝난 주문(수령 · 취소)은 오늘 것만, 최신이 위.
@@ -778,8 +788,7 @@ function managerBoard(orders, businessDate) {
   const today = (o) => o.businessDate === businessDate;
   return {
     waiting: waitingOrders(orders),
-    // 먼저 부른 것부터 — 오래 기다린 손님이 위에 온다
-    ready: orders.filter((o) => o.status === 'ready').sort((a, b) => callTime(a) - callTime(b)),
+    ready: readyQueue(orders),
     pickedUp: orders.filter((o) => o.status === 'pickedUp' && today(o))
       .sort((a, b) => (b.pickedUpAt || 0) - (a.pickedUpAt || 0)),
     cancelled: orders.filter((o) => o.status === 'cancelled' && today(o))
@@ -2436,14 +2445,72 @@ function buildOrderCard(order, now, lateMinutes) {
   return card;
 }
 
-// 완료 + 되돌리기 (접근성 원칙 4: 모든 동작은 되돌릴 수 있다)
-async function markReady(order) {
-  await state.backend.set('orders', order.id, { status: 'ready', readyAt: Date.now() });
-  toast(`${order.orderNo}번 호출했어요`, {
+// 주문 상태를 바꾸는 유일한 길. 되돌릴 동작을 주면 토스트에 '되돌리기'를 단다
+// (접근성 원칙 4: 모든 동작은 되돌릴 수 있다).
+async function applyOrder(order, action, { message, undo } = {}) {
+  await state.backend.set('orders', order.id, orderPatch(action, order, Date.now()));
+  if (!message) return;
+  if (!undo) { toast(message); return; }
+  const after = { ...order, ...orderPatch(action, order, Date.now()) };
+  toast(message, {
     actionText: '되돌리기',
     ms: CONFIG.undoSeconds * 1000,
-    onAction: () => state.backend.set('orders', order.id, { status: 'waiting', readyAt: null }),
+    onAction: () => state.backend.set('orders', order.id, orderPatch(undo, after, Date.now())),
   });
+}
+
+function markReady(order) {
+  return applyOrder(order, 'complete', { message: `${order.orderNo}번 호출했어요`, undo: 'backToMaking' });
+}
+
+function markPickedUp(order) {
+  return applyOrder(order, 'pickUp', { message: `${order.orderNo}번 손님이 가져갔어요`, undo: 'unPickUp' });
+}
+
+// 제조 화면 아래의 '준비 완료' 카드 — 음료를 건네면서 '가져감'을 누른다.
+function buildPickupCard(order) {
+  const card = document.createElement('div');
+  card.className = 'order-card pickup-card';
+  const no = document.createElement('div');
+  no.className = 'order-no';
+  no.textContent = String(order.orderNo);
+  card.appendChild(no);
+  const items = document.createElement('div');
+  items.className = 'order-items';
+  for (const item of order.items || []) items.appendChild(buildItemLine(item));
+  card.appendChild(items);
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'btn primary big';
+  btn.textContent = '가져감';
+  btn.setAttribute('aria-label', `${order.orderNo}번 손님이 가져감`);
+  btn.onclick = () => markPickedUp(order);
+  card.appendChild(btn);
+  return card;
+}
+
+// 메뉴 한 줄 (사진 또는 이모지 + 이름 + 수량). 품절 버튼 없이 보여주기만 한다.
+function buildItemLine(item) {
+  const row = document.createElement('div');
+  row.className = 'oi';
+  const thumb = document.createElement('div');
+  thumb.className = 'oi-thumb';
+  if (item.photo) {
+    const img = document.createElement('img');
+    img.src = item.photo;
+    img.alt = '';
+    thumb.appendChild(img);
+  } else {
+    thumb.textContent = item.emoji || '☕';
+  }
+  const name = document.createElement('span');
+  name.className = 'oi-name';
+  name.textContent = item.name || '';
+  const qty = document.createElement('b');
+  qty.className = 'oi-qty';
+  qty.textContent = `×${item.qty}`;
+  row.append(thumb, name, qty);
+  return row;
 }
 
 function renderBaristaView(el) {
@@ -2464,6 +2531,19 @@ function renderBaristaView(el) {
     grid.className = 'order-grid';
     const now0 = Date.now();
     for (const order of list) grid.appendChild(buildOrderCard(order, now0, lateMinutes));
+    wrap.appendChild(grid);
+  }
+
+  // 다 만든 음료 — 손님께 건네면 '가져감'. 가져간 번호는 호출 화면에서 빠진다.
+  const ready = readyQueue(state.orders);
+  if (ready.length) {
+    const head = document.createElement('h2');
+    head.className = 'pickup-head';
+    head.textContent = '✅ 준비 완료 — 손님께 건네면 ‘가져감’을 눌러요';
+    wrap.appendChild(head);
+    const grid = document.createElement('div');
+    grid.className = 'order-grid';
+    for (const order of ready) grid.appendChild(buildPickupCard(order));
     wrap.appendChild(grid);
   }
   el.appendChild(wrap);
@@ -2602,7 +2682,8 @@ function renderDisplayView(el) {
   if (!top) {
     const hint = document.createElement('p');
     hint.className = 'display-empty';
-    hint.textContent = '아직 준비된 음료가 없어요.';
+    // 아직 부른 번호가 없을 때와, 마지막 번호를 손님이 가져갔을 때 모두 이 문구다
+    hint.textContent = '음료가 준비되면 번호를 불러 드려요.';
     center.appendChild(hint);
   } else {
     const no = document.createElement('div');
@@ -2667,7 +2748,7 @@ function buildBoardCol(kind, heading, list, more, latest) {
 }
 
 // 새 호출 감지 — 주문 구독이 바뀔 때마다 불린다.
-let lastCallReadyAt = 0;     // 이미 반응을 끝낸 가장 최근 완료 시각
+let lastCallAt = 0;          // 이미 반응을 끝낸 가장 최근 호출 시각
 let displayPrimed = false;
 function onOrdersChanged() {
   const [top] = recentCalls(state.orders, 1);
@@ -2676,15 +2757,15 @@ function onOrdersChanged() {
   // 그래야 호출 화면을 새로고침해도 과거 주문이 갑자기 울리지 않는다.
   if (!displayPrimed) {
     displayPrimed = true;
-    lastCallReadyAt = top ? top.readyAt : 0;
+    lastCallAt = top ? callTime(top) : 0;
     return;
   }
 
-  // 완료 시각이 더 최근일 때만 새 호출이다.
-  // 제조에서 '되돌리기'를 누르면 맨 앞이 이전 번호로 바뀌는데, 그건 새로 나온
-  // 음료가 아니다. 이미 받아간 손님의 번호를 다시 부르면 안 된다.
-  if (!top || !(top.readyAt > lastCallReadyAt)) return;
-  lastCallReadyAt = top.readyAt;
+  // 부른 시각이 더 최근일 때만 새 호출이다 (완료 · 다시 호출).
+  // 제조로 되돌리거나 손님이 가져가면 맨 앞이 이전 번호로 바뀌는데, 그건 새로 나온
+  // 음료가 아니다. 이미 불렀던 번호를 다시 부르면 안 된다.
+  if (!top || !(callTime(top) > lastCallAt)) return;
+  lastCallAt = callTime(top);
 
   // 소리는 손님이 보는 화면에서만 난다. 주문·제조 화면에서 울리면 방해가 된다.
   if (state.role !== 'display') return;
