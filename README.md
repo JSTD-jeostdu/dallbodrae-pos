@@ -31,13 +31,28 @@
 
 ## 관리자용
 
+### 한 프로젝트를 두 카페가 나눠 쓴다
+
+같은 Firebase 프로젝트(`dallbodrae-pos`)를 주곡 카페 POS(`JSTD-jeostdu/jugok-pos`)와 함께 씁니다.
+데이터 경로가 달라 서로 닿지 않습니다.
+
+| 항목 | 달보드레 (이 앱) | 주곡 카페 |
+|---|---|---|
+| 주소 | `dallbodrae-pos.web.app` | `jugok-pos.web.app` |
+| 데이터 경로 | `dallbodrae_pos/cafe-2026/…` | `jugok_pos/cafe-2026/…` |
+| Hosting 사이트 | `dallbodrae-pos` | `jugok-pos` |
+
+> ⚠️ `firestore.rules`는 **두 저장소에 같은 내용**으로 들어 있고, 한 번 배포하면 두 앱의 규칙이
+> 함께 게시됩니다. 한쪽 블록만 남기고 배포하면 다른 카페의 앱이 멈춥니다.
+> `firebase.json`의 `site` 값도 지우지 마세요 — 프로젝트에 사이트가 둘이라 사이트를 지정하지 않으면 배포가 실패합니다.
+
 ### 구성
 
 | 파일 | 하는 일 |
 |---|---|
 | `index.html` | 앱 전체. 화면·로직·설정(`CONFIG`)·자가 테스트가 모두 들어 있다 |
 | `logo.png` | 호출 화면 왼쪽 위 로고 (`CONFIG.logoSrc`) |
-| `firestore.rules` | Firestore 보안 규칙 |
+| `firestore.rules` | Firestore 보안 규칙 (달보드레 블록 + 주곡 블록) |
 | `firebase.json` · `.firebaserc` | Firebase Hosting 배포 설정 |
 | `달보드레_카페_POS_PRD.md` | 요구사항 |
 | `달보드레_카페_POS_구현계획.md` | 태스크별 구현 계획 |
