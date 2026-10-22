@@ -19,9 +19,10 @@ service cloud.firestore {
         ['menus', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'counters', 'settings'];
     }
 
+    // baristas는 주곡 카페에만 있는 컬렉션이다 (달보드레 블록은 그대로 둔다).
     match /jugok_pos/{spaceId}/{collection}/{docId} {
       allow read, write: if collection in
-        ['menus', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'counters', 'settings'];
+        ['menus', 'baristas', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'counters', 'settings'];
     }
   }
 }
