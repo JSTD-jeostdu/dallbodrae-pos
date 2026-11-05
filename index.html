@@ -452,6 +452,10 @@
   /* 빈칸은 책상 사이를 벌려 주기만 한다. 고르는 화면에서는 보이지 않고,
      관리 화면에서만 눌러서 옮길 수 있게 모양을 준다. */
   .seat-blank { min-height: 58px; visibility: hidden; }
+  .seat-preview .seat-unfilled {
+    border-color: var(--brand); color: var(--brand-dark); font-weight: 700;
+    background: #fdf3e9;
+  }
   .seat-preview .seat-blank {
     visibility: visible; border-radius: 12px; border: 2px dashed var(--line);
     background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--panel) 6px, var(--panel) 12px);
@@ -1144,7 +1148,116 @@ function baristaSummary(orders, from, to) {
 //   blank  — 빈 책상 자리
 // 아래는 앱에 들어 있는 기본 명단이다. 관리 화면에서 한 번이라도 고치면
 // 저장된 명단만 쓴다 (seatMap 참고).
-const DEFAULT_SEAT_MAP = [];
+const DEFAULT_SEAT_MAP = [
+  { floor: '4층', room: '4층 본관 교무실', note: '1학년부', cols: 4, cells: [
+    { span: 2 },
+    { blank: true },
+    { blank: true },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+  ]},
+  { floor: '4층', room: '4층 별관 교무실', note: '학생안전인권부 · 학생자치부 · 예술체육부', cols: 2, cells: [
+    {},
+    {},
+    {},
+    {},
+  ]},
+  { floor: '4층', room: '특별실', cols: 2, cells: [
+    { name: '미술실', place: true },
+    { name: '음악실', place: true },
+  ]},
+  { floor: '3층', room: '3층 본관 교무실', note: '2학년부', cols: 4, cells: [
+    {},
+    {},
+    { span: 2 },
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+    {},
+  ]},
+  { floor: '3층', room: '진로상담실', cells: [
+    {},
+  ]},
+  { floor: '3층', room: '위클래스', cells: [
+    {},
+  ]},
+  { floor: '3층', room: '특별실', cols: 2, cells: [
+    { name: '과학실 Ⅰ', place: true },
+    { name: '과학실 Ⅱ', place: true },
+  ]},
+  { floor: '2층', room: '2층 본관 교무실', note: '3학년부 · 교육정보부', cols: 4, cells: [
+    { span: 2 },
+    { span: 2 },
+    {},
+    {},
+    {},
+    {},
+    { blank: true },
+    { blank: true },
+    { blank: true },
+    {},
+  ]},
+  { floor: '2층', room: '도서관', cells: [
+    {},
+  ]},
+  { floor: '2층', room: '영어회화실', cells: [
+    { name: '영어회화실', place: true },
+  ]},
+  { floor: '1층', room: '교장실', cols: 1, width: 'wide', cells: [
+    {},
+  ]},
+  { floor: '1층', room: '1층 본관 교무실', note: '교감 · 교무기획 · 교육연구 · 교육과정 · 창의융합부 · 행정실무팀', cols: 5, cells: [
+    {},
+    {},
+    {},
+    { rspan: 2 },
+    { rspan: 4 },
+    {},
+    {},
+    {},
+    { blank: true },
+    {},
+    {},
+    { rspan: 2 },
+    { blank: true },
+    {},
+    {},
+  ]},
+  { floor: '1층', room: '행정실', cols: 3, cells: [
+    { span: 3 },
+    {},
+    {},
+    {},
+  ]},
+  { floor: '1층', room: '교육정보실', cols: 1, width: 'narrow', cells: [
+    {},
+    {},
+  ]},
+  { floor: '1층', room: '급식실', width: 'narrow', cells: [
+    {},
+  ]},
+  { floor: '1층', room: '보건실', width: 'narrow', cells: [
+    {},
+  ]},
+  { floor: '1층', room: '통합교육지원실', width: 'narrow', cells: [
+    {},
+    {},
+  ]},
+  { floor: '1층', room: '특별실', cols: 2, cells: [
+    { name: '방송실', place: true },
+    { name: '학부모상주실', place: true },
+  ]},
+];
 // 관리 화면에서 고친 명단이 있으면 그것만 쓰고, 아직 손대지 않았으면 기본 명단을 쓴다.
 // 연습 모드나 처음 켠 기기에서도 자리배치도가 그대로 보이게 하려는 것이다.
 function sortedSeatRooms(rooms) {
@@ -3008,14 +3121,22 @@ function buildSeatRoomCard(room, cells, { mapped, onPick, placeOnly, onCell } = 
   const grid = document.createElement('div');
   grid.className = 'seat-grid';
   cells.forEach((person, i) => {
-    if (person.blank) {
-      // 빈 책상 자리. 격자에서 한 칸을 차지해 뒤 칸을 밀어 준다.
+    // 두 가지가 자리만 차지하고 보이지 않는다.
+    //   blank  — 책상 사이를 벌리는 빈칸
+    //   이름 없음 — 아직 안 채운 자리 (관리 화면에서 눌러 채운다)
+    const unfilled = !person.blank && !person.name;
+    if (person.blank || unfilled) {
       const hole = document.createElement(onCell ? 'button' : 'div');
-      hole.className = 'seat-blank';
+      hole.className = unfilled ? 'seat-blank seat-unfilled' : 'seat-blank';
+      if (mapped) {
+        if (person.span > 1) hole.style.gridColumnEnd = `span ${person.span}`;
+        if (person.rspan > 1) hole.style.gridRowEnd = `span ${person.rspan}`;
+      }
       if (onCell) {
         hole.type = 'button';
-        hole.textContent = '빈칸';
-        hole.setAttribute('aria-label', `${i + 1}번째 칸 (빈칸) 고치기`);
+        hole.textContent = unfilled ? '＋ 이름 넣기' : '빈칸';
+        hole.setAttribute('aria-label',
+          unfilled ? `${i + 1}번째 자리에 이름 넣기` : `${i + 1}번째 칸 (빈칸) 고치기`);
         hole.onclick = () => onCell(i);
       }
       grid.appendChild(hole);
@@ -3053,9 +3174,14 @@ function renderSeatTab(body) {
   const stored = state.seats.length > 0;
   body.innerHTML = `
     <p class="tab-desc">
-      주문 화면의 <b>‘🗺️ 자리배치도’</b>에 나오는 명단입니다. 방을 만들고 그 안에 자리를 놓으세요.
-      자리는 <b>왼쪽 위부터 넣은 순서대로</b> 놓입니다 — 책상 사이가 비어 있으면 <b>빈칸</b>을 넣어 밀어 주세요.
-      명단이 비면 주문 화면에서 자리배치도 칸이 저절로 숨고, 주문자는 ‘직접 적기’로만 넣습니다.
+      주문 화면의 <b>‘🗺️ 자리배치도’</b>에 나오는 명단입니다.
+      <b>점선으로 된 ‘＋ 이름 넣기’ 칸을 누르고 이름만 적으면 됩니다.</b> 한 분이라도 채우면
+      주문 화면에 자리배치도 칸이 생깁니다.
+    </p>
+    <p class="tab-desc">
+      방 이름·층이 우리 학교와 다르면 <b>‘방 고치기’</b>로 바꾸고, 안 쓰는 방은 <b>‘삭제’</b>하세요.
+      자리가 모자라면 <b>‘＋ 자리’</b>, 책상 사이를 벌리려면 <b>‘＋ 빈칸’</b>을 씁니다.
+      칸은 왼쪽 위부터 넣은 순서대로 놓입니다.
     </p>
     <div class="menu-tab-head">
       <button class="btn primary" id="btn-add-room">＋ 방 추가</button>
@@ -3064,21 +3190,12 @@ function renderSeatTab(body) {
     <div class="seat-admin" id="seat-admin"></div>`;
   body.querySelector('#btn-add-room').onclick = () => openSeatRoomModal();
 
-  // 기본 명단이 있는데 아직 고친 적이 없으면, 가져와서 고치도록 안내한다.
+  // 되돌리기는 이미 고친 뒤에만 뜻이 있다. 가져오기는 칸을 누르면 저절로 된다.
   const restore = body.querySelector('#seat-restore');
-  if (!stored && DEFAULT_SEAT_MAP.length) {
-    const hint = document.createElement('small');
-    hint.className = 'seat-restore-hint';
-    hint.textContent = '앱에 들어 있는 기본 명단을 보고 있어요. 고치려면 먼저 가져오세요.';
-    const btn = document.createElement('button');
-    btn.className = 'btn';
-    btn.textContent = '기본 명단 가져오기';
-    btn.onclick = importDefaultSeats;
-    restore.append(btn, hint);
-  } else if (stored && DEFAULT_SEAT_MAP.length) {
+  if (stored && DEFAULT_SEAT_MAP.length) {
     const btn = document.createElement('button');
     btn.className = 'btn ghost';
-    btn.textContent = '기본 명단으로 되돌리기';
+    btn.textContent = '처음 양식으로 되돌리기';
     btn.onclick = resetSeatsToDefault;
     restore.appendChild(btn);
   }
@@ -3105,8 +3222,10 @@ function renderSeatTab(body) {
     const sub = document.createElement('small');
     const widthLabel = room.width === 'wide' ? '한 줄 전체'
       : room.width === 'narrow' ? '반의 반 줄' : '반 줄';
+    const filled = seatPeople(room).length;
+    const todo = (room.cells || []).filter((c) => !c.blank && !c.name).length;
     sub.textContent = [room.note, `${room.cols || 1}칸씩`, widthLabel,
-      `자리 ${seatPeople(room).length}`].filter(Boolean).join(' · ');
+      todo ? `채운 자리 ${filled} · 빈 자리 ${todo}` : `자리 ${filled}`].filter(Boolean).join(' · ');
     title.append(b, sub);
     head.appendChild(title);
 
@@ -3163,24 +3282,19 @@ function renderSeatTab(body) {
   });
 }
 
-// 기본 명단을 저장소로 옮긴다 — 이때부터 관리 화면에서 고칠 수 있다.
+// 앱에 들어 있는 기본 양식을 저장소로 옮긴다 — 이때부터 고칠 수 있다.
+// 처음 칸을 누를 때 말없이 일어난다. 가져오기 버튼을 먼저 찾아 누르게 하면
+// 시작부터 막히고, 화면도 달라지지 않으므로 물어볼 것이 없다.
 async function importDefaultSeats() {
-  const ok = await confirmModal({
-    title: '기본 명단을 가져올까요?',
-    msg: '앱에 들어 있는 명단을 그대로 복사해 옵니다. 이때부터 관리 화면에서 고칠 수 있어요.',
-    okText: '가져오기',
-  });
-  if (!ok) return;
   await Promise.all(DEFAULT_SEAT_MAP.map((room, i) =>
     state.backend.add('seats', { ...room, order: i + 1, createdAt: Date.now() })));
   await saveSettings({ seatsEdited: true });
-  toast('기본 명단을 가져왔어요. 이제 고칠 수 있습니다.');
 }
 
 async function resetSeatsToDefault() {
   const ok = await confirmModal({
-    title: '기본 명단으로 되돌릴까요?',
-    msg: '지금 명단을 모두 지우고 앱에 들어 있는 기본 명단으로 바꿉니다. 되돌릴 수 없어요.',
+    title: '처음 양식으로 되돌릴까요?',
+    msg: '적어 둔 이름을 모두 지우고 처음 빈 양식으로 되돌립니다. 되돌릴 수 없어요.',
     okText: '되돌리기', okClass: 'danger',
   });
   if (!ok) return;
@@ -3193,8 +3307,18 @@ async function resetSeatsToDefault() {
 // 고치려면 먼저 저장소에 있어야 한다 (기본 명단은 코드 안에 있어 고칠 수 없다).
 async function ensureSeatsStored() {
   if (state.seats.length) return true;
+  if (!DEFAULT_SEAT_MAP.length) return false;
   await importDefaultSeats();
   return state.seats.length > 0;
+}
+
+// 화면이 들고 있는 방을 저장된 방과 잇는다.
+// 기본 양식에는 id가 없으므로, 가져온 직후에는 층·이름으로 찾아야 한다.
+function resolveSeatRoom(room) {
+  if (!room) return null;
+  return (room.id && state.seats.find((r) => r.id === room.id))
+    || state.seats.find((r) => r.floor === room.floor && r.room === room.room)
+    || null;
 }
 
 async function openSeatRoomModal(existing) {
@@ -3224,7 +3348,9 @@ async function openSeatRoomModal(existing) {
     cols: Number(values.cols), width: values.width,
   };
   if (existing) {
-    await state.backend.set('seats', existing.id, patch);
+    const target = resolveSeatRoom(existing);
+    if (!target) return;
+    await state.backend.set('seats', target.id, patch);
     toast('방을 저장했어요.');
   } else {
     if (state.seats.length === 0) await saveSettings({ seatsEdited: true });
@@ -3242,7 +3368,9 @@ async function removeSeatRoom(room) {
     okText: '지우기', okClass: 'danger',
   });
   if (!ok) return;
-  await state.backend.remove('seats', room.id);
+  const target = resolveSeatRoom(room);
+  if (!target) return;
+  await state.backend.remove('seats', target.id);
   toast('방을 지웠어요.');
 }
 
@@ -3261,14 +3389,15 @@ async function saveSeatCells(room, cells) {
 
 async function addSeatCell(room, cell) {
   if (!(await ensureSeatsStored())) return;
-  const fresh = state.seats.find((r) => r.id === room.id) || room;
+  const fresh = resolveSeatRoom(room);
+  if (!fresh) return;
   await saveSeatCells(fresh, [...(fresh.cells || []), cell]);
 }
 
 // 칸 하나 고치기 — idx가 -1이면 새 자리를 뒤에 붙인다.
 async function openSeatCellModal(room, idx) {
   if (!(await ensureSeatsStored())) return;
-  const fresh = state.seats.find((r) => r.id === room.id);
+  const fresh = resolveSeatRoom(room);
   if (!fresh) return;
   const cells = [...(fresh.cells || [])];
   const adding = idx < 0;
@@ -3309,8 +3438,10 @@ async function openSeatCellModal(room, idx) {
   if (!adding) fields.push(moveField);
 
   const values = await formModal({
-    title: adding ? '자리 추가' : '자리 고치기',
-    desc: '전화번호는 교무실 내선번호처럼 짧게 적어도 됩니다.',
+    title: adding ? '자리 추가' : (cur.name ? '자리 고치기' : '이름 넣기'),
+    desc: cur.name || adding
+      ? '전화번호는 교무실 내선번호처럼 짧게 적어도 됩니다.'
+      : '이름만 적어도 됩니다. 직책·전화는 나중에 채워도 돼요.',
     fields,
     validate: (v) => {
       if (v.action === 'delete') return null;      // 지울 거면 이름이 비어도 된다
@@ -4836,7 +4967,9 @@ function buildCustomerBar() {
 
   // 자리배치도에서 고르기 — 선생님 이름을 외우지 않아도 자리로 찾을 수 있다.
   // 명단이 비어 있으면 눌러도 빈 창만 뜨므로 아예 숨긴다 (관리 → 자리배치도에서 채운다).
-  if (seatMap().length) addTile('🗺️', '자리배치도', false, openSeatPicker, 'seats');
+  if (seatMap().some((r) => seatPeople(r).length)) {
+    addTile('🗺️', '자리배치도', false, openSeatPicker, 'seats');
+  }
 
   // 명단에 없는 손님 — 직접 적는다. 적어 둔 이름이 있으면 그 이름을 보여 준다.
   const typed = !orderCustomer.id && orderCustomer.name;
@@ -6737,8 +6870,8 @@ test('자리는 한 줄 칸 수를 넘지 않는다', () => {
   eq(bad, []);
 });
 
-test('빈칸은 사람으로 세지 않는다', () => {
-  const room = { cells: [{ name: '가' }, { blank: true }, { name: '나' }] };
+test('빈칸과 아직 안 채운 자리는 사람으로 세지 않는다', () => {
+  const room = { cells: [{ name: '가' }, { blank: true }, {}, { name: '나' }] };
   eq(seatPeople(room).map((c) => c.name), ['가', '나']);
   eq(seatPeople({ cells: [] }), []);
   eq(seatPeople({}), []);
@@ -6751,7 +6884,6 @@ test('자리배치도가 성한 모양이다', () => {
     if (!room.floor) bad.push(`${room.room}: 층이 없다`);
     if (!room.room) bad.push('방 이름이 없는 칸이 있다');
     for (const p of seatPeople(room)) {
-      if (!p.name) bad.push(`${room.room}: 이름이 빈 자리가 있다`);
       const key = `${p.name}/${room.room}`;
       if (seen.has(key)) bad.push(`중복: ${key}`);
       seen.add(key);
