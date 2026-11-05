@@ -342,42 +342,283 @@
   .rec-table th { color: var(--muted); font-weight: 700; }
   .rec-list { margin: 0; padding-left: 20px; font-size: calc(14px * var(--scale)); line-height: 1.8; }
 
+  /* ---- 바리스타 ----
+     주문 화면 맨 위에서 "누가 만들지"를 먼저 고른다. 메뉴 타일과 같은 생김새로 두어
+     학생이 조작을 따로 배우지 않아도 된다. */
+  /* 주문 화면은 좌 · 우 두 칸이다.
+       왼쪽 : 누가 주문하나요?(고정) + [누가 만들까요? · 메뉴](여기만 스크롤)
+       오른쪽: 담은 주문 — 맨 위부터 맨 아래까지 통째로 쓴다
+     페이지 자체는 스크롤하지 않는다 — '주문하기'가 늘 같은 자리에 보여야 한다. */
+  .order-page { height: 100%; display: flex; flex-direction: row; gap: 16px; min-height: 0; }
+  .order-main { flex: 1 1 0; min-width: 0; min-height: 0; display: flex; flex-direction: column; gap: 12px; }
+  .barista-bar { flex-shrink: 0; }
+  /* 누가 주문하나요? — 맨 위에 두고 눈에 띄게 한다. 원격 주문을 받는 선생님이
+     놓치지 않아야 해서, 고르기 전에는 테두리와 배경으로 한 번 더 부른다. */
+  .cust-bar {
+    flex-shrink: 0; padding: 10px 12px; border-radius: var(--radius);
+    background: var(--panel); border: 3px solid var(--line);
+  }
+  .cust-bar.empty { background: #fdf3e9; border-color: var(--brand); }
+  .cust-bar .barista-head h2 { color: var(--brand-dark); }
+  .cust-strip { display: flex; gap: 10px; overflow-x: auto; padding: 2px 2px 6px; }
+  .ct {
+    position: relative; flex: 0 0 auto; min-width: 128px; max-width: 230px; min-height: 76px;
+    padding: 10px 14px; border-radius: 16px; text-align: left;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--bg); border: 3px solid var(--line); color: var(--ink);
+  }
+  .ct:active { transform: scale(.97); }
+  .ct .em { font-size: 28px; line-height: 1; flex-shrink: 0; }
+  .ct .nm { font-size: calc(17px * var(--scale)); font-weight: 900; line-height: 1.25; overflow-wrap: anywhere; }
+  /* 고른 사람: 색만으로 구분하지 않는다 — 두꺼운 테두리 + 배경 + ✓ */
+  .ct.on { border-color: var(--ok); background: #eef7f1; }
+  .ct.on::after {
+    content: '✓'; position: absolute; top: -10px; right: -8px; width: 30px; height: 30px;
+    border-radius: 50%; background: var(--ok); color: #fff; font-size: 17px; font-weight: 900;
+    border: 3px solid var(--bg); display: flex; align-items: center; justify-content: center;
+  }
+  .ct.write { border-style: dashed; }
+  .ct.seats { border-style: dashed; }
+
+  /* ---- 자리배치도 고르기 창 ---- */
+  .seat-modal { max-width: 900px; width: 100%; max-height: 88vh; display: flex; flex-direction: column; }
+  .seat-body { flex: 1; min-height: 0; overflow-y: auto; margin: 10px 0; }
+  /* 자리배치도 — 종이 배치도의 좌표를 그대로 흉내 내면 칸이 빽빽하고 제목이 겹친다.
+     층 → 교무실 → 사람 순서로 가지런히 늘어놓는 쪽이 눈에 잘 들어오고 찾기도 빠르다. */
+  /* 층마다 접었다 편다 — 한 번에 다 펼치면 세로로 너무 길어 찾기 어렵다 */
+  .seat-floor { margin-bottom: 10px; border: 2px solid var(--line); border-radius: 12px; overflow: hidden; }
+  .seat-floor > summary {
+    list-style: none; cursor: pointer; padding: 12px 14px; min-height: 52px;
+    display: flex; align-items: center; gap: 10px;
+    background: var(--ink); color: #fff; font-size: calc(16px * var(--scale)); font-weight: 900;
+  }
+  .seat-floor > summary::-webkit-details-marker { display: none; }
+  .seat-floor > summary::before { content: '▸'; font-size: calc(14px * var(--scale)); }
+  .seat-floor[open] > summary::before { content: '▾'; }
+  .seat-floor > summary .count {
+    margin-left: auto; font-size: calc(13px * var(--scale)); font-weight: 400;
+    background: rgba(255, 255, 255, .18); border-radius: 999px; padding: 3px 10px;
+  }
+  .seat-floor > .seat-rooms { padding: 12px; }
+  .seat-rooms { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+  .seat-room {
+    background: var(--panel); border: 2px solid var(--line); border-radius: 14px; padding: 12px;
+  }
+  .seat-room > h5 {
+    margin: 0 0 2px; font-size: calc(15px * var(--scale)); color: var(--brand-dark); font-weight: 900;
+  }
+  .seat-room > .note { margin: 0 0 8px; color: var(--muted); font-size: calc(12px * var(--scale)); line-height: 1.5; }
+  .seat-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(132px, 1fr)); gap: 8px; }
+  /* 책상 배열을 아는 방은 실제 자리대로 칸을 놓는다 (cols·at). 빈자리는 빈칸으로 남긴다.
+     이름만 늘어놓는 것보다, 평소 앉은 자리 모양 그대로가 훨씬 빨리 찾힌다. */
+  .seat-room.mapped .seat-grid { grid-template-columns: repeat(var(--cols), minmax(0, 1fr)); }
+  .seat-room { grid-column: span 2; }          /* 기본: 한 줄의 반 */
+  .seat-room.wide { grid-column: 1 / -1; }     /* 교무실처럼 한 줄 전체 */
+  .seat-room.narrow { grid-column: span 1; }   /* 한두 자리뿐인 방: 한 줄에 네 개 */
+  .seat-room.narrow:not(.mapped) .seat-grid { grid-template-columns: 1fr; }
+  /* 휴대폰에서는 네 칸으로 쪼개면 글자가 다 깨진다. 큰 상자는 한 줄, 작은 방만 둘씩. */
+  @media (max-width: 700px) {
+    .seat-rooms { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .seat-room, .seat-room.wide { grid-column: 1 / -1; }
+    .seat-room.narrow { grid-column: span 1; }
+  }
+  /* 사람이 없는 공간(미술실 등)은 칸을 꽉 채워 한 줄로 */
+  .seat-room.place-only:not(.mapped) .seat-grid { grid-template-columns: 1fr; }
+  .seat-cell {
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px;
+    min-height: 58px; padding: 8px 6px; border-radius: 12px; text-align: center;
+    background: var(--bg); border: 2px solid var(--line); color: var(--ink);
+  }
+  .seat-cell b { font-size: calc(16px * var(--scale)); font-weight: 900; line-height: 1.2; overflow-wrap: anywhere; }
+  .seat-cell small { font-size: calc(11px * var(--scale)); color: var(--muted); line-height: 1.3; }
+  .seat-cell:hover, .seat-cell:focus-visible { border-color: var(--brand); background: #fdf3e9; outline: none; }
+  .seat-cell:active { transform: scale(.97); border-color: var(--ok); background: #eef7f1; }
+  .seat-cell.place { background: var(--panel); border-style: dashed; }
+  .seat-cell.place b { color: var(--brand-dark); font-size: calc(15px * var(--scale)); }
+  /* 고른 사람이 맞는지 확인받는 작은 창.
+     배치도 창(.modal-back, z-index 600)보다 높은 층에 둬야 한다.
+     낮게 두면 배치도 뒤에 숨어, 눌러도 아무 일이 없는 것처럼 보인다. */
+  /* ---- 관리 → 자리배치도 ---- */
+  .seat-edit-room { border: 2px solid var(--line); border-radius: 14px; padding: 12px; margin-bottom: 12px; }
+  .seat-edit-head { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .seat-edit-title { flex: 1; min-width: 160px; }
+  .seat-edit-title b { display: block; font-size: calc(15px * var(--scale)); color: var(--brand-dark); }
+  .seat-edit-title small { color: var(--muted); font-size: calc(12px * var(--scale)); }
+  .seat-edit-add { display: flex; gap: 8px; margin-top: 10px; }
+  .seat-restore-hint { display: block; color: var(--muted); font-size: calc(12px * var(--scale)); margin-top: 4px; }
+  /* 관리 화면 미리보기는 늘 한 줄을 다 쓴다 — 고르는 화면이 아니라 고치는 화면이다 */
+  .seat-preview { grid-template-columns: 1fr !important; }
+  .seat-preview .seat-room { grid-column: 1 / -1 !important; }
+  /* 빈칸은 책상 사이를 벌려 주기만 한다. 고르는 화면에서는 보이지 않고,
+     관리 화면에서만 눌러서 옮길 수 있게 모양을 준다. */
+  .seat-blank { min-height: 58px; visibility: hidden; }
+  .seat-preview .seat-blank {
+    visibility: visible; border-radius: 12px; border: 2px dashed var(--line);
+    background: repeating-linear-gradient(45deg, transparent, transparent 6px, var(--panel) 6px, var(--panel) 12px);
+    color: var(--muted); font-size: calc(12px * var(--scale));
+  }
+  .seat-confirm-back {
+    position: fixed; inset: 0; z-index: 700; background: rgba(42, 35, 32, .5);
+    display: flex; align-items: center; justify-content: center; padding: 16px;
+  }
+  .seat-confirm {
+    background: var(--panel); border: 3px solid var(--ok); border-radius: var(--radius);
+    padding: 18px 20px; box-shadow: 0 10px 30px rgba(42, 35, 32, .3); min-width: 240px; max-width: 90vw;
+  }
+  .seat-confirm p { margin: 0 0 12px; font-size: calc(17px * var(--scale)); font-weight: 700; }
+  .seat-confirm small { display: block; color: var(--muted); font-weight: 400; font-size: calc(12px * var(--scale)); }
+  .seat-confirm .row { display: flex; gap: 6px; }
+  .seat-confirm .btn { flex: 1; min-height: 44px; padding: 6px 10px; font-size: calc(14px * var(--scale)); }
+  .seat-empty { color: var(--muted); padding: 20px 0; text-align: center; }
+  /* 화면이 좁고 낮을 때(휴대폰 가로, 글자 아주 크게)는 주문자 칸을 납작하게 줄인다.
+     메뉴 자리를 지키는 게 먼저다 — 주문자는 선택 사항이고 담은 주문 위에도 또 있다. */
+  @media (max-height: 820px) and (max-width: 560px) {
+    .cust-bar { padding: 8px 10px; }
+    .cust-bar .barista-head { margin-bottom: 4px; }
+    .cust-bar .barista-head h2 { font-size: calc(17px * var(--scale)); }
+    .cust-bar .pick-hint { display: none; }
+    .ct { min-height: 56px; min-width: 112px; padding: 8px 12px; }
+    .ct .em { font-size: 22px; }
+    .ct .nm { font-size: calc(15px * var(--scale)); }
+  }
+  .barista-head { display: flex; align-items: baseline; gap: 10px; margin: 0 0 8px; flex-wrap: wrap; }
+  .barista-head h2 { margin: 0; font-size: calc(20px * var(--scale)); color: var(--brand); font-weight: 900; }
+  .barista-head .pick-hint { color: var(--muted); font-size: calc(14px * var(--scale)); }
+  .barista-strip { display: flex; gap: 14px; overflow-x: auto; padding: 4px 2px 8px; }
+  /* 바리스타 타일은 메뉴 타일과 같은 크기로 둔다 — 손님이 '누가 만드는지'를 보고
+     고르는 것이 이 카페의 중요한 교육 목표라, 메뉴보다 작게 두면 뜻이 흐려진다. */
+  .bt {
+    /* 메뉴 타일처럼 남는 자리를 나눠 갖고 늘어난다. 다만 160px 밑으로는 줄지 않아,
+       학생이 많아지면 옆으로 넘겨 본다 (세로로 쌓여 메뉴 자리를 먹지 않게). */
+    position: relative; flex: 1 0 160px; max-width: 220px; min-height: 180px; padding: 10px;
+    display: flex; flex-direction: column; gap: 8px; text-align: center;
+    background: var(--panel); border: 3px solid var(--line); border-radius: 20px;
+    box-shadow: 0 2px 8px rgba(0,0,0,.05);
+  }
+  .bt:active { transform: scale(.96); }
+  /* 타일 안의 얼굴은 칸을 꽉 채운다 (작은 칩에서 쓰는 .bt-photo 크기는 그대로 둔다) */
+  .bt > .bt-photo { width: 100%; height: auto; aspect-ratio: 1; font-size: 52px; border-width: 3px; }
+  .bt-photo {
+    width: 64px; height: 64px; border-radius: 50%; overflow: hidden; background: var(--bg);
+    border: 2px solid var(--line); display: flex; align-items: center; justify-content: center; font-size: 30px;
+  }
+  .bt-photo img { width: 100%; height: 100%; object-fit: cover; }
+  .bt-name { font-size: calc(19px * var(--scale)); font-weight: 900; line-height: 1.25; overflow-wrap: break-word; }
+  /* 고른 학생: 색만으로 구분하지 않는다 — 두꺼운 테두리 + 체크 + 글자 */
+  .bt.on { border-color: var(--ok); background: #eef7f1; }
+  .bt.on .bt-photo { border-color: var(--ok); }
+  .bt-check {
+    position: absolute; top: -10px; right: -8px; width: 34px; height: 34px; border-radius: 50%;
+    background: var(--ok); color: #fff; font-size: 19px; font-weight: 900;
+    border: 3px solid var(--bg);
+    display: flex; align-items: center; justify-content: center;
+  }
+  .barista-empty {
+    color: var(--muted); font-size: calc(14px * var(--scale)); background: var(--panel);
+    border: 2px dashed var(--line); border-radius: 14px; padding: 12px 14px;
+  }
+  /* 누가 시켰는지 — 담은 주문 위에 둔다. 안 고르면 '현장 손님'이다. */
+  .cust-pick {
+    display: flex; align-items: center; gap: 8px; width: 100%; margin-bottom: 10px;
+    padding: 10px 12px; min-height: 52px; border-radius: 12px; text-align: left;
+    background: var(--panel); border: 2px dashed var(--line); color: var(--ink);
+    font-size: calc(14px * var(--scale));
+  }
+  .cust-pick.on { border-style: solid; border-color: var(--brand); background: #fdf3e9; }
+  .cust-pick .who { flex: 1; min-width: 0; font-weight: 700; overflow-wrap: anywhere; }
+  .cust-pick .label { color: var(--muted); flex-shrink: 0; }
+  .cust-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .cust-tile {
+    display: flex; align-items: center; gap: 8px; padding: 12px; min-height: 60px;
+    background: var(--panel); border: 2px solid var(--line); border-radius: 14px;
+    color: var(--ink); font-size: calc(15px * var(--scale)); font-weight: 700; text-align: left;
+  }
+  .cust-tile .em { font-size: 24px; flex-shrink: 0; }
+  .cust-tile span { overflow-wrap: anywhere; }
+  .cust-tile[aria-pressed="true"] { border-color: var(--brand); background: #fdf3e9; }
+  /* 주문자 표 — 제조·매니저 카드에 붙는다 */
+  .cust-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px;
+    background: #fdf3e9; border: 2px solid var(--brand); border-radius: 999px;
+    font-size: calc(13px * var(--scale)); font-weight: 700; color: var(--brand-dark); max-width: 100%;
+  }
+  .cust-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 호출 화면 — 번호 아래에 이름 */
+  .display-cust {
+    margin: 0; font-size: clamp(16px, 3vmin, 32px); font-weight: 700; color: var(--brand-dark);
+  }
+
+  /* 담은 주문 아래에서 '누가 만드는지'를 한 번 더 보여 준다 */
+  .cart-barista {
+    display: flex; align-items: center; gap: 8px; margin-bottom: 10px; padding: 8px 10px;
+    background: #eef7f1; border: 2px solid var(--ok); border-radius: 12px;
+    font-size: calc(14px * var(--scale));
+  }
+  .cart-barista .bt-photo { width: 34px; height: 34px; font-size: 18px; border-width: 2px; }
+  .cart-barista b { color: var(--ok); }
+  .need-barista {
+    margin: 0 0 8px; padding: 8px 10px; border-radius: 12px; text-align: center;
+    background: #fff8ec; border: 2px solid var(--warn); color: var(--ink);
+    font-size: calc(14px * var(--scale)); font-weight: 700;
+  }
+  /* 제조·매니저 카드에 붙는 "누가 만들어요" 표 */
+  .who-chip {
+    display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 4px;
+    background: var(--bg); border: 2px solid var(--line); border-radius: 999px;
+    font-size: calc(13px * var(--scale)); font-weight: 700; max-width: 100%;
+  }
+  .who-chip .bt-photo { width: 26px; height: 26px; font-size: 14px; border-width: 2px; }
+  .who-chip span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  /* 제조 화면 위쪽: 내 주문만 보기 */
+  .mine-bar { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 14px; }
+  .mine-bar .label { color: var(--muted); font-size: calc(14px * var(--scale)); }
+  .mine-btn {
+    min-height: 44px; padding: 6px 12px; border-radius: 999px; background: var(--panel);
+    border: 2px solid var(--line); color: var(--ink); font-weight: 700;
+    font-size: calc(14px * var(--scale)); display: inline-flex; align-items: center; gap: 6px;
+  }
+  .mine-btn[aria-pressed="true"] { background: var(--brand); border-color: var(--brand-dark); color: #fff; }
+  .mine-btn .bt-photo { width: 26px; height: 26px; font-size: 14px; border-width: 2px; }
+
   /* ---- 주문 화면 (PRD 3.1) ----
      AAC 원칙: 사진과 글자가 한 타일 안에 항상 함께 있다.
      품절은 색이 아니라 흐림 + 화면을 덮는 큰 ✕로 표시하고, 버튼 자체를 막는다. */
-  .order-screen { display: flex; gap: 16px; height: 100%; }
   /* .order-menu는 이제 스크롤 상자가 아니라 [스크롤 영역(.menu-scroll) + 화살표] 를
      세로로 쌓는 틀이다. 스크롤 상자 "안"에 화살표 자리를 padding으로 비워 두면,
      내용이 넘칠 때 그 padding 안까지 다음 줄이 비집고 들어와 버린다(스크롤 컨테이너의
      padding은 넘치는 내용을 막는 경계가 아니라 스크롤 가능한 여유 공간일 뿐이라서).
      그래서 화살표를 스크롤 영역 "밖" 형제로 두어, 항상 자기 자리(고정 높이)만
      차지하고 타일 줄과는 절대 겹치지 않게 한다. */
-  .order-menu { flex: 3; min-width: 0; height: 100%; display: flex; flex-direction: column; overflow: hidden; }
-  .menu-scroll { flex: 1; min-height: 0; overflow-y: auto; }
+  /* 왼쪽: 바리스타 줄과 메뉴 타일이 한 덩어리로 여기서만 스크롤된다.
+     타일을 줄 단위로 잘라 내지 않으므로 '반쯤 잘린 줄'이 생기지 않는다. */
+  .order-menu {
+    flex: 1 1 0; min-width: 0; min-height: 0; max-width: none;
+    display: flex; flex-direction: column; gap: 12px; overflow-y: auto;
+  }
+  .menu-scroll { flex: 0 0 auto; }
   /* 주문하기는 항상 눌려야 하는 버튼이라 담은 내용이 길어져도 스크롤에 묻히면 안 된다.
      그래서 패널 전체를 스크롤하는 대신, 카드 목록(.cart-list)만 안에서 스크롤하고
      머리글·합계·버튼은 항상 제자리에 고정한다. min-height: 0은 flex 자식이
      내용 크기 아래로 줄어들 수 있게 해 .cart-list의 overflow-y가 실제로 걸리게 한다. */
   .order-cart {
-    flex: 2; min-width: 260px; max-width: 380px; height: 100%; min-height: 0;
+    /* max-height를 CSS로 걸지 않는다 — JS(layoutOrderPanels)가 "메뉴 한 줄은 반드시
+       남긴다"는 조건으로 실제 상한을 정하는데, 여기 퍼센트 상한이 함께 걸려 있으면
+       JS가 "머리글 + 버튼만 있을 때의 최소 높이"를 재는 순간에도 적용돼
+       그 값을 52px처럼 터무니없이 작게 읽는다(실제로 그렇게 깨졌다). */
+    /* 세로로 길게 — 위아래를 꽉 채운다. 담은 목록(.cart-list)만 안에서 스크롤하고
+       머리글 · 주문자 · 만드는 사람 · 주문하기는 늘 제자리에 보인다. */
+    flex: 0 0 340px; min-width: 280px; max-width: 420px; height: 100%; min-height: 0;
     display: flex; flex-direction: column;
-    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
-    padding: 16px;
+    background: var(--panel); border: 3px solid var(--brand); border-radius: var(--radius);
+    padding: 14px 16px;
   }
-  /* 좁은 화면(또는 아주 크게 글자 크기)에서 가로 스크롤 없이 위아래로 쌓는다.
-     order-screen의 높이는 main 박스에 그대로 고정해 둔다(height: 100%, auto 아님).
-     장바구니는 담긴 만큼만 차지하다가(flex-grow: 0) 화면의 절반을 넘지 않게 막고
-     (max-height), 메뉴가 남는 공간을 전부 가져간다(flex: 1) — 학생이 실제로 가장
-     자주 쓰는 곳은 메뉴 타일이고, 장바구니는 주문을 시작할 때 항상 비어 있어
-     처음 화면을 볼 때 메뉴가 더 넓게 보이도록 우선순위를 뒀다. 두 영역의 높이 합은
-     항상 order-screen(= main) 높이와 같으므로 footer를 침범할 여지가 없다. */
-  @media (max-width: 760px) {
-    .order-screen { flex-direction: column; height: 100%; }
-    .order-menu { flex: 1 1 auto; min-height: 0; height: auto; max-width: none; }
-    .order-cart {
-      flex: 0 0 auto; min-height: 0; height: auto; max-height: 50%; max-width: none;
-      overflow-y: auto;   /* 극단적으로 좁은 화면에서도 내용이 상자 밖으로 흘러넘치지 않게 하는 안전장치 */
-    }
+
+  /* 옆에 세울 만큼 넓지 않으면(휴대폰 등) 아래로 쌓는다 — 가로 스크롤은 만들지 않는다.
+     세로로 세운 태블릿(768px)까지는 옆에 세운다: 카트 340 + 메뉴 400 = 타일 두 줄. */
+  @media (max-width: 640px) {
+    .order-page { flex-direction: column; gap: 12px; }
+    .order-main { flex: 1 1 auto; }
+    .order-cart { flex: 0 0 auto; width: 100%; min-width: 0; max-width: none; height: auto; max-height: 52%; }
   }
 
   .menu-grid {
@@ -407,7 +648,7 @@
   }
 
   .cart-head { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
-  .cart-head h2 { margin: 0; font-size: calc(18px * var(--scale)); color: var(--brand); flex: 1; }
+  .cart-head h2 { margin: 0; font-size: calc(20px * var(--scale)); color: var(--brand); font-weight: 900; flex: 1; }
   /* .cart-list도 .order-menu와 같은 구조다: [스크롤 영역(.cart-scroll) + 화살표]를
      세로로 쌓는 틀이라, 카드 목록만 안에서 스크롤되고 화살표는 항상 제자리에 있다. */
   /* overflow: hidden — 아주 좁은 화면에서 메뉴 한 줄을 지키느라 장바구니가 빠듯하게
@@ -415,7 +656,10 @@
      주문하기 버튼을 덮는 일이 없게 하는 안전장치다(overflow: hidden이 있어야
      이 틀도 "내용 크기 아래로 줄어들 수 있는" 자동 최소 높이를 갖는다). */
   .cart-list { display: flex; flex-direction: column; flex: 1; min-height: 0; overflow: hidden; }
-  .cart-scroll { display: flex; flex-direction: column; gap: 10px; flex: 1; min-height: 60px; overflow-y: auto; }
+  .cart-scroll {
+    display: flex; flex-direction: column; gap: 12px;
+    flex: 1; min-height: 60px; overflow-y: auto;
+  }
   /* 스크롤로 가려진 내용이 더 있을 때만 나타나는 화살표. 늘 자기 자리(고정 높이)만
      차지해 타일·카드와 결코 겹치지 않는다. 색이 아니라 모양(⌄)으로 "더 있음"을 알린다.
      visibility로 켜고 꺼서(= display 아님) 안 보일 때도 자리는 그대로 남긴다 —
@@ -429,30 +673,31 @@
     box-shadow: 0 2px 8px rgba(0,0,0,.15); pointer-events: none;
   }
   .scroll-cue.show { visibility: visible; }
+  .order-page .scroll-cue { display: none; }
   .cart-card {
-    display: flex; align-items: center; gap: 12px; padding: 10px;
+    display: flex; align-items: center; gap: 14px; padding: 12px 14px;
     background: var(--bg); border: 2px solid var(--line); border-radius: 16px;
   }
   .cart-thumb {
-    width: 56px; height: 56px; flex-shrink: 0; border-radius: 12px; background: var(--panel);
+    width: 68px; height: 68px; flex-shrink: 0; border-radius: 14px; background: var(--panel);
     border: 2px solid var(--line); display: flex; align-items: center; justify-content: center;
-    overflow: hidden; font-size: 28px;
+    overflow: hidden; font-size: 34px;
   }
   .cart-thumb img { width: 100%; height: 100%; object-fit: cover; }
   .cart-info { flex: 1; min-width: 0; }
-  .cart-name { font-weight: 700; font-size: calc(15px * var(--scale)); margin-bottom: 6px; overflow-wrap: break-word; }
+  .cart-name { font-weight: 900; font-size: calc(17px * var(--scale)); margin-bottom: 8px; overflow-wrap: break-word; }
   .qty-row { display: flex; align-items: center; gap: 10px; }
   .qty-btn {
-    width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--panel);
-    border: 2px solid var(--line); font-size: 18px; font-weight: 900; color: var(--brand-dark);
+    width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px; background: var(--panel);
+    border: 2px solid var(--line); font-size: 22px; font-weight: 900; color: var(--brand-dark);
   }
-  .qty-num { min-width: 24px; text-align: center; font-weight: 900; font-size: calc(16px * var(--scale)); }
+  .qty-num { min-width: 32px; text-align: center; font-weight: 900; font-size: calc(19px * var(--scale)); }
   .cart-del {
-    width: 36px; height: 36px; flex-shrink: 0; border-radius: 10px; background: var(--panel);
-    border: 2px solid var(--line); color: var(--danger); font-size: 16px; font-weight: 900;
+    width: 46px; height: 46px; flex-shrink: 0; border-radius: 12px; background: var(--panel);
+    border: 2px solid var(--line); color: var(--danger); font-size: 18px; font-weight: 900;
   }
   .cart-total { text-align: right; font-weight: 900; font-size: calc(16px * var(--scale)); margin: 10px 0; }
-  .btn.big { min-height: 60px; font-size: calc(18px * var(--scale)); width: 100%; margin-top: 10px; }
+  .btn.big { min-height: 68px; font-size: calc(21px * var(--scale)); width: 100%; margin-top: 12px; }
 
   /* ---- 주문 완료 : 번호 표시 ----
      번호 글자 크기는 상단바 글자 크기 설정과 독립적으로 화면 폭에 맞춰 정한다 —
@@ -545,6 +790,10 @@
   .mcol.cancelled .mcol-head { color: var(--danger); }
   .mcol-body { flex: 1; min-height: 0; overflow-y: auto; padding: 10px; display: flex; flex-direction: column; gap: 10px; }
   .mcol-empty { color: var(--muted); text-align: center; padding: 20px 0; font-size: calc(14px * var(--scale)); }
+  .mcol-note {
+    margin: 0; padding: 8px 14px; color: var(--muted); line-height: 1.5;
+    font-size: calc(12px * var(--scale)); border-bottom: 1px solid var(--line);
+  }
   .mcard {
     border: 2px solid var(--line); border-radius: 14px; padding: 10px 12px; background: var(--panel);
     display: flex; flex-direction: column; gap: 8px;
@@ -683,9 +932,9 @@ const CONFIG = {
   firebaseVersion: '12.19.0',
   appName: 'dallbodrae-pos',     // Firebase 인스턴스 이름 — 다른 앱과 캐시가 섞이지 않게
   databaseId: '',                // 비우면 (default) 데이터베이스
-  dataRoot: 'dallbodrae_pos',    // 최상위 컬렉션 — 기존 앱이 쓰지 않는 이름이어야 한다
+  dataRoot: 'dallbodrae_pos',    // 최상위 컬렉션 — 주곡 카페(jugok_pos)와 완전히 다른 경로
   spaceId: 'cafe-2026',          // 운영 단위. 새로 시작하고 싶으면 이 값만 바꾼다
-  cafeName: '달보드레',
+  cafeName: '달보드레',           // 화면·음성·CSV 파일 이름에 쓰인다. 바꾸려면 여기만 고치면 된다
 
   defaults: {
     priceMode: 'off',            // 'off' | 'show' | 'practice'
@@ -703,15 +952,23 @@ const CONFIG = {
   photoQuality: 0.7,             // JPEG 품질
   photoMaxBytes: 300 * 1024,     // 이보다 크면 품질을 낮춰 재시도
   undoSeconds: 6,
+  pickedUpVisibleMinutes: 10,    // 매니저 보드 '수령 완료'에 남겨 두는 시간 (분). 지나면 기록에만 남는다
   liveOrderDays: 7,              // 평소 화면이 받아 오는 주문 기간 (일). 그보다 오래된 주문은 기록 화면에서만 불러온다
   adminIdleMinutes: 3,           // 관리 화면을 이만큼 아무도 건드리지 않으면 다시 잠근다                // "완료" 되돌리기 가능 시간 (초)
+  showWalkInTile: true,          // 주문 화면 '누가 주문하나요?'에 [현장 손님] 칸을 보일지.
+                                 // 카운터 앞 손님이 대부분인 카페라면 켜 둔다.
   recentOrderCount: 12,          // 주문 화면 최근 주문 표시 개수
   displayReadyCount: 10,         // 호출 화면 '준비 완료'에 남겨 둘 번호 개수 (넘치면 오래된 것부터 빠진다)
   displayWaitingCount: 12,       // 호출 화면 '제조 중'에 보여줄 번호 개수 (넘치면 '외 N건')
-  logoSrc: 'logo.png',           // 호출 화면 왼쪽 위 로고. 비우면 카페 이름 글자로 대신한다
+  logoSrc: 'logo.png',           // 호출 화면 왼쪽 위 로고 파일. 비워 두면 카페 이름 글자로 나온다
 
+  baristaKey: 'dallbodrae-barista',             // 주문 화면에서 고른 바리스타 (기기마다 기억)
+  baristaFilterKey: 'dallbodrae-barista-filter', // 제조 화면 '내 주문만 보기' (기기마다 기억)
   localStorageKey: 'dallbodrae-local-db',
-  roleKey: 'dallbodrae-role',
+  roleKey: 'dallbodrae-role',           // 고른 역할을 기기에 저장하는 자리
+  rememberRole: true,              // 고른 역할을 기기가 기억할지.
+                                   // 기기마다 역할을 정해 두고 쓰므로 켜 둔다. 끄면 주소를 열
+                                   // 때마다 주문 화면에서 시작한다 (링크를 널리 공유할 때 유용).
   managerModeKey: 'dallbodrae-manager-mode',   // 매니저 보드 태블릿/모바일 모드 (기기마다)
   fontScaleKey: 'dallbodrae-font-scale',
 };
@@ -839,6 +1096,109 @@ function cartTotal(cart) {
   return cart.reduce((sum, c) => sum + (c.price || 0) * c.qty, 0);
 }
 
+// ---- 바리스타 ----
+// 메뉴와 똑같이 관리한다 — 사진·이름을 등록하고 순서를 정한다.
+function sortedBaristas(baristas) {
+  return [...baristas].sort((a, b) => {
+    const ao = a.order ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.order ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return String(a.name).localeCompare(String(b.name), 'ko');
+  });
+}
+
+// 오늘 쉬는 학생은 주문 화면에서 감춘다. 지우는 게 아니라 잠깐 내리는 것이다
+// (메뉴 품절과 같은 방식) — 다음에 다시 켜면 그대로 돌아온다.
+function activeBaristas(baristas) {
+  return sortedBaristas(baristas).filter((b) => !b.offToday);
+}
+
+// 기록용 — 취소를 뺀 주문을 바리스타별로 모은다. 많이 만든 순.
+// 바리스타를 고르지 않고 들어간 옛 주문은 한 칸에 모아 둔다.
+function baristaSummary(orders, from, to) {
+  const picked = orders
+    .filter((o) => inRange(o, from, to) && o.status !== 'cancelled')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const map = new Map();
+  for (const o of picked) {
+    const id = o.baristaId || '';
+    const cur = map.get(id) || { baristaId: id, name: '(고르지 않음)', qty: 0, orderCount: 0 };
+    cur.qty += (o.items || []).reduce((n, it) => n + (Number(it.qty) || 0), 0);
+    cur.orderCount += 1;
+    if (o.baristaName) cur.name = o.baristaName;   // 이름이 바뀌었으면 최근 것
+    map.set(id, cur);
+  }
+  return [...map.values()].sort((a, b) => b.qty - a.qty || String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
+// ---- 자리배치도 ----
+// 주문자를 자리로 찾게 해 주는 명단이다. 관리 → 자리배치도에서 고친다.
+//
+// 자리는 좌표가 아니라 '순서'로 적는다. CSS 격자가 넣은 순서대로 왼쪽 위부터
+// 칸을 채우고 이미 찬 칸은 건너뛰므로, 빈칸만 끼워 넣으면 어떤 모양이든 나온다.
+// 한 사람을 지웠을 때 뒤의 모든 좌표를 다시 계산할 필요가 없다.
+//   cols   — 한 줄에 몇 칸인지
+//   width  — 상자 폭: 'wide' 한 줄 전체 · 'narrow' 반의 반 · 없으면 반 줄
+//   span   — 책상이 가로로 몇 칸 (부장 자리 등)
+//   rspan  — 세로로 몇 칸
+//   blank  — 빈 책상 자리
+// 아래는 앱에 들어 있는 기본 명단이다. 관리 화면에서 한 번이라도 고치면
+// 저장된 명단만 쓴다 (seatMap 참고).
+const DEFAULT_SEAT_MAP = [];
+// 관리 화면에서 고친 명단이 있으면 그것만 쓰고, 아직 손대지 않았으면 기본 명단을 쓴다.
+// 연습 모드나 처음 켠 기기에서도 자리배치도가 그대로 보이게 하려는 것이다.
+function sortedSeatRooms(rooms) {
+  return [...rooms].sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+}
+
+function seatMap() {
+  if (state.seats.length) return sortedSeatRooms(state.seats);
+  return state.settings.seatsEdited ? [] : DEFAULT_SEAT_MAP;
+}
+
+// 한 방에 실제로 앉은 사람만 (빈칸 제외)
+function seatPeople(room) {
+  return (room.cells || []).filter((c) => !c.blank && c.name);
+}
+
+// 주문에 남길 이름. 사람은 '고명희 (4층 본관 교무실)', 공간은 '미술실'.
+// 호칭은 붙이지 않는다 — 명단에 교사뿐 아니라 주무관·실무사도 함께 있다.
+function seatLabel(person, room) {
+  return person.place ? person.name : `${person.name} (${room})`;
+}
+
+// ---- 주문자 ----
+// 원격 주문(메신저로 받는 주문)이 있어 누가 시켰는지 남겨야 한다.
+// 자주 주문하는 사람은 명단에 등록해 두고 타일로 고르고, 없으면 그때만 적는다.
+// 받을 장소는 이름에 함께 적는다 (예: '김민수 선생님 (교무실)').
+function sortedCustomers(customers) {
+  return [...customers].sort((a, b) => {
+    const ao = a.order ?? Number.MAX_SAFE_INTEGER;
+    const bo = b.order ?? Number.MAX_SAFE_INTEGER;
+    if (ao !== bo) return ao - bo;
+    return String(a.name).localeCompare(String(b.name), 'ko');
+  });
+}
+
+// 기록용 — 주문자별 주문 건수와 잔 수. 많이 시킨 순.
+// 주문자를 적지 않은 건(카운터 앞 손님)은 한 칸에 모은다.
+function customerSummary(orders, from, to) {
+  const picked = orders
+    .filter((o) => inRange(o, from, to) && o.status !== 'cancelled')
+    .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0));
+  const map = new Map();
+  for (const o of picked) {
+    const name = (o.customerName || '').trim();
+    const key = name || '';
+    const cur = map.get(key) || { name: name || '현장 손님', qty: 0, orderCount: 0 };
+    cur.qty += (o.items || []).reduce((n, it) => n + (Number(it.qty) || 0), 0);
+    cur.orderCount += 1;
+    map.set(key, cur);
+  }
+  return [...map.values()].sort((a, b) => b.orderCount - a.orderCount || b.qty - a.qty
+    || String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
 // ---- 제조 대기 목록 ----
 // 정렬은 반드시 createdAt 기준이다.
 // 주문번호는 초기화(3.6.1) 때문에 같은 날 중복될 수 있으므로 정렬 키로 쓰면 안 된다.
@@ -928,18 +1288,69 @@ function readyQueue(orders) {
   return orders.filter((o) => o.status === 'ready').sort((a, b) => callTime(a) - callTime(b));
 }
 
+// ---- 손님 평가 ----
+// 손님은 음료 점수(1~4) · 주문 정확도 · 기다린 시간 · 칭찬 스티커 · 한마디를 남긴다.
+// 학생에게는 점수를 보여 주지 않는다 — 칭찬만 세어 선생님이 전해 준다.
+const SPEED_LABEL = { fast: '빨랐어요', ok: '괜찮아요', slow: '오래 걸렸어요' };
+
+function feedbackSummary(feedbacks) {
+  const drinks = feedbacks.map((f) => Number(f.drink)).filter((n) => n >= 1 && n <= 4);
+  const answered = feedbacks.filter((f) => typeof f.accurate === 'boolean');
+  const speed = { fast: 0, ok: 0, slow: 0 };
+  const praiseCount = new Map();     // 스티커별
+  const byBarista = new Map();       // 학생별 칭찬 수
+
+  for (const f of feedbacks) {
+    if (speed[f.speed] !== undefined) speed[f.speed] += 1;
+    const praises = Array.isArray(f.praises) ? f.praises : [];
+    for (const text of praises) praiseCount.set(text, (praiseCount.get(text) || 0) + 1);
+    if (f.baristaId || f.baristaName) {
+      const key = f.baristaId || f.baristaName;
+      const cur = byBarista.get(key) || { baristaId: f.baristaId || '', name: f.baristaName || '', praises: 0, count: 0 };
+      cur.count += 1;
+      cur.praises += praises.length;
+      if (f.baristaName) cur.name = f.baristaName;
+      byBarista.set(key, cur);
+    }
+  }
+
+  const drinkCounts = [1, 2, 3, 4].map((v) => ({ score: v, count: drinks.filter((d) => d === v).length }));
+  return {
+    total: feedbacks.length,
+    drinkAvg: drinks.length ? Math.round((drinks.reduce((a, b) => a + b, 0) / drinks.length) * 10) / 10 : null,
+    drinkCounts,
+    accurateYes: answered.filter((f) => f.accurate).length,
+    accurateTotal: answered.length,
+    speed,
+    praises: [...praiseCount.entries()].map(([text, count]) => ({ text, count })).sort((a, b) => b.count - a.count),
+    byBarista: [...byBarista.values()].sort((a, b) => b.praises - a.praises || String(a.name).localeCompare(String(b.name), 'ko')),
+    comments: feedbacks.filter((f) => (f.comment || '').trim())
+      .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0)),
+  };
+}
+
 // ---- 매니저 보드 (Task 11.5) ----
 // 끝나지 않은 주문(제조 중 · 준비 완료)은 날짜와 상관없이 모두 보여준다 — 어제 처리 못 한
 // 주문이 조용히 사라지면 안 된다. 끝난 주문(수령 · 취소)은 오늘 것만, 최신이 위.
-function managerBoard(orders, businessDate) {
+// 손님이 가져간 주문은 잠깐만 남겨 둔다. 하루치가 그대로 쌓이면 보드가 금세 길어져
+// 지금 해야 할 일(제조 중 · 준비 완료)이 묻힌다. 지난 건은 관리 → 기록에 그대로 있다.
+function managerBoard(orders, businessDate, now = Date.now(), visibleMinutes = 10) {
   const today = (o) => o.businessDate === businessDate;
+  const pickedToday = orders.filter((o) => o.status === 'pickedUp' && today(o));
+  const cancelledToday = orders.filter((o) => o.status === 'cancelled' && today(o));
+  const cutoff = now - visibleMinutes * 60 * 1000;
   return {
     waiting: waitingOrders(orders),
     ready: readyQueue(orders),
-    pickedUp: orders.filter((o) => o.status === 'pickedUp' && today(o))
+    // 수령 시각이 없는 옛 주문은 '방금'인지 알 수 없으니 보드에서 뺀다 (기록에는 남는다)
+    pickedUp: pickedToday.filter((o) => (o.pickedUpAt || 0) > cutoff)
       .sort((a, b) => (b.pickedUpAt || 0) - (a.pickedUpAt || 0)),
-    cancelled: orders.filter((o) => o.status === 'cancelled' && today(o))
+    pickedUpTodayCount: pickedToday.length,
+    // 취소도 마찬가지 — 쌓여 있으면 지금 할 일이 안 보인다. 취소 시각이 없는
+    // 옛 주문은 '방금'인지 알 수 없으니 뺀다 (기록에는 남는다).
+    cancelled: cancelledToday.filter((o) => (o.cancelledAt || 0) > cutoff)
       .sort((a, b) => (b.cancelledAt || 0) - (a.cancelledAt || 0)),
+    cancelledTodayCount: cancelledToday.length,
   };
 }
 
@@ -1538,7 +1949,7 @@ function formModal({ title, desc, fields, okText = '저장', validate }) {
 const state = {
   role: null,
   backend: null,
-  menus: [], ingredients: [], orders: [], settings: {},
+  menus: [], baristas: [], customers: [], ingredients: [], orders: [], seats: [], settings: {},
   fontScale: 'normal',
 };
 
@@ -1653,7 +2064,7 @@ function setRole(role) {
   // 비밀번호 없이 들어가지 못하게 한다.
   if (role !== 'admin') lockAdmin();
   state.role = role;
-  if (role) localStorage.setItem(CONFIG.roleKey, role);
+  if (CONFIG.rememberRole && role) localStorage.setItem(CONFIG.roleKey, role);
   else localStorage.removeItem(CONFIG.roleKey);
   render();
 }
@@ -1705,7 +2116,9 @@ function renderGuideView(el) {
         </table>
         <p style="margin-top:10px">
           기기마다 주소를 열고 역할을 한 번만 고르면 됩니다.
-          <b>고른 역할은 그 기기가 기억</b>하므로 다음 날 다시 고르지 않아도 돼요.
+          ${CONFIG.rememberRole
+            ? '<b>고른 역할은 그 기기가 기억</b>하므로 다음 날 다시 고르지 않아도 돼요.'
+            : '주소를 열면 <b>늘 주문 화면</b>에서 시작해요. 제조·호출 화면으로 바꾸려면 오른쪽 위 <b>‘역할 바꾸기’</b>를 누르세요. 화면을 새로 고치거나 기기를 다시 켜면 주문 화면으로 돌아옵니다.'}
         </p>
       </section>
 
@@ -1721,6 +2134,7 @@ function renderGuideView(el) {
       <section class="card">
         <h3>③ 하루는 이렇게 흘러갑니다</h3>
         <ol>
+          <li><b>누가 만들지 고르기</b> — 주문 화면 맨 위에서 오늘 만드는 학생의 사진을 누릅니다. 한 번 고르면 바꿀 때까지 그대로예요.</li>
           <li><b>주문</b> — 학생이 메뉴를 눌러 담고 ‘주문하기’를 누르면 번호가 나옵니다.</li>
           <li><b>제조</b> — 만들 음료가 카드로 뜹니다. 오래 기다린 주문은 빨갛게 표시돼요. 다 만들면 ‘완료’를 누릅니다.</li>
           <li><b>호출</b> — 완료한 번호가 손님 화면에 크게 뜨고, 차임음과 음성으로 불립니다.</li>
@@ -1752,6 +2166,14 @@ function renderGuideView(el) {
           <tr><th>주문번호를 1번부터</th><td>관리 → 설정 → ‘주문번호 다시 시작’. 날이 바뀌면 저절로 1번부터 시작하니 평소엔 쓸 일이 없어요.</td></tr>
           <tr><th>손님이 안 올 때</th><td>매니저 → 준비 완료 카드의 ‘다시 호출’. 처음처럼 크게 뜨고 음성으로 한 번 더 부릅니다.</td></tr>
           <tr><th>주문을 잘못 받았을 때</th><td>매니저 → 카드의 ‘취소’. 판매 기록에서 빠지고, 취소 열에서 언제든 ‘되살리기’할 수 있어요.</td></tr>
+          <tr><th>바리스타를 등록할 때</th><td>관리 → 바리스타에서 사진과 이름을 추가합니다. 오늘 안 온 학생은 ‘오늘 쉬어요’를 켜 두면 주문 화면에서 잠깐 사라지고, 끄면 돌아와요.</td></tr>
+          <tr><th>둘이 같이 만들 때</th><td>제조 화면 위쪽에서 자기 이름을 누르면 <b>자기 주문만</b> 보입니다. ‘모두 보기’로 되돌릴 수 있어요.</td></tr>
+          <tr><th>메신저로 주문을 받았을 때</th><td>주문 화면 맨 위 <b>‘🙋 누가 주문하나요?’</b>에서 고릅니다. ‘🗺️ 자리배치도’를 누르면 층 → 교무실 순서로 정리된 선생님 명단이 뜹니다. 이름을 누르면 ‘고명희 (4층 본관 교무실)’처럼 들어가요 (이름·교무실로 검색도 됩니다).
+            명단에 없으면 그 자리에서 이름을 적을 수 있어요. 자주 주문하는 분은 관리 → 주문자에 등록해 두면 다음부터 누르기만 하면 됩니다.
+            고른 이름은 제조 화면·호출 화면·매니저 보드에 함께 보여서 누구 것인지 바로 알 수 있어요.</td></tr>
+          <tr><th>손님 평가를 받고 싶을 때</th><td>카운터에 QR을 붙여 두세요. 손님이 음료를 받고 찍으면 자기 번호를 고르고 30초 안에 평가합니다. 결과는 관리 → 기록의 ‘손님 평가’에서만 보여요.</td></tr>
+          <tr><th>수령 완료가 쌓여 보기 불편할 때</th><td>매니저 보드의 ‘수령 완료’는 10분이 지나면 저절로 사라집니다. 기록은 관리 → 기록에 그대로 남아 있어요. 시간은 관리 → 설정에서 바꿀 수 있습니다.</td></tr>
+          <tr><th>학생별로 몇 잔 만들었는지</th><td>관리 → 기록의 ‘바리스타별 판매’에서 봅니다. 엑셀 파일에도 들어갑니다.</td></tr>
           <tr><th>재료를 관리하고 싶을 때</th><td>관리 → 재료에서 재료를 등록하고, 메뉴 ‘수정’에서 레시피를 넣으면 주문할 때마다 저절로 줄어요. 레시피를 비워 둔 메뉴는 재고를 건드리지 않으니 천천히 하나씩 채워도 됩니다.</td></tr>
           <tr><th>장을 보러 갈 때</th><td>관리 → 재료 맨 위의 장볼 목록을 ‘목록 복사’하거나 ‘인쇄’합니다. 사 온 뒤에는 ‘입고’를 눌러 양을 더해요.</td></tr>
           <tr><th>얼마나 팔았는지 볼 때</th><td>관리 → 기록에서 오늘 · 이번 주 · 이번 달을 고릅니다. ‘엑셀로 내려받기’로 파일도 받을 수 있어요.</td></tr>
@@ -1811,7 +2233,7 @@ function watchAdminIdle() {
   document.addEventListener('visibilitychange', () => { if (!document.hidden) check(); });
 }
 let pinInput = '';
-let adminTab = 'menu';   // 'menu' | 'ingredients' | 'records' | 'staff' | 'settings'
+let adminTab = 'menu';   // 'menu' | 'baristas' | 'customers' | 'seats' | 'ingredients' | 'records' | 'staff' | 'settings'
 
 function renderPinGate(el) {
   el.innerHTML = `
@@ -1876,6 +2298,9 @@ function renderAdminTabs(el) {
     <div class="admin">
       <div class="admin-tabs" role="tablist">
         <button class="admin-tab" data-tab="menu">🍹 메뉴</button>
+        <button class="admin-tab" data-tab="baristas">🧑‍🍳 바리스타</button>
+        <button class="admin-tab" data-tab="customers">🙋 주문자</button>
+        <button class="admin-tab" data-tab="seats">🗺️ 자리배치도</button>
         <button class="admin-tab" data-tab="ingredients">🥛 재료</button>
         <button class="admin-tab" data-tab="records">📊 기록</button>
         <button class="admin-tab" data-tab="staff">🧑‍🍳 담당</button>
@@ -1890,7 +2315,10 @@ function renderAdminTabs(el) {
   }
 
   const body = el.querySelector('#admin-body');
-  if (adminTab === 'ingredients') renderIngredientTab(body);
+  if (adminTab === 'baristas') renderBaristaTab(body);
+  else if (adminTab === 'customers') renderCustomerTab(body);
+  else if (adminTab === 'seats') renderSeatTab(body);
+  else if (adminTab === 'ingredients') renderIngredientTab(body);
   else if (adminTab === 'records') renderRecordsTab(body);
   else if (adminTab === 'staff') renderStaffTab(body);
   else if (adminTab === 'settings') renderSettingsTab(body);
@@ -2210,6 +2638,728 @@ function openMenuModal(existing) {
   };
 }
 
+// ---- 바리스타 탭 ----
+// 메뉴 탭과 같은 모양으로 둔다 — 선생님이 한 번 익힌 조작을 그대로 쓴다.
+function renderBaristaTab(body) {
+  const list = sortedBaristas(state.baristas);
+  body.innerHTML = `
+    <p class="tab-desc">
+      카페를 맡는 학생을 등록해요. 주문 화면 맨 위에서 <b>누가 만들지 먼저 고른 뒤</b> 메뉴를 담게 됩니다.
+      오늘 안 온 학생은 <b>쉬는 날</b>로 켜 두면 주문 화면에서 잠깐 사라졌다가, 끄면 그대로 돌아와요.
+    </p>
+    <div class="menu-tab-head"><button class="btn primary" id="btn-add-barista">＋ 바리스타 추가</button></div>
+    <div class="menu-list" id="barista-list"></div>`;
+  body.querySelector('#btn-add-barista').onclick = () => openBaristaModal();
+
+  const listEl = body.querySelector('#barista-list');
+  if (list.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '등록된 바리스타가 없어요. 위 버튼으로 학생을 추가해 주세요.';
+    listEl.appendChild(p);
+    return;
+  }
+
+  list.forEach((b, i) => {
+    const row = document.createElement('div');
+    row.className = 'menu-row';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'menu-thumb';
+    if (b.photo) {
+      const img = document.createElement('img');
+      img.src = b.photo;
+      img.alt = b.name || '바리스타 사진';
+      thumb.appendChild(img);
+    } else {
+      thumb.textContent = b.emoji || '🧑‍🍳';
+    }
+    row.appendChild(thumb);
+
+    const info = document.createElement('div');
+    info.className = 'menu-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'menu-name';
+    nameEl.textContent = b.name || '(이름 없음)';
+    if (b.offToday) {
+      const badge = document.createElement('span');
+      badge.className = 'badge soldout';
+      badge.textContent = '쉬는 날';
+      nameEl.appendChild(badge);
+    }
+    const sub = document.createElement('div');
+    sub.className = 'menu-price';
+    sub.textContent = b.offToday ? '주문 화면에 보이지 않아요' : '주문 화면에서 고를 수 있어요';
+    info.append(nameEl, sub);
+    row.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'menu-actions';
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'icon-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = '위로';
+    upBtn.disabled = i === 0;
+    upBtn.onclick = () => moveBarista(b.id, -1);
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'icon-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = '아래로';
+    downBtn.disabled = i === list.length - 1;
+    downBtn.onclick = () => moveBarista(b.id, 1);
+
+    const offBtn = document.createElement('button');
+    offBtn.className = 'btn ghost small';
+    offBtn.textContent = b.offToday ? '왔어요' : '오늘 쉬어요';
+    offBtn.onclick = () => state.backend.set('baristas', b.id, { offToday: !b.offToday });
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn ghost small';
+    editBtn.textContent = '수정';
+    editBtn.onclick = () => openBaristaModal(b);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn danger small';
+    delBtn.textContent = '삭제';
+    delBtn.onclick = async () => {
+      const ok = await confirmModal({
+        title: '바리스타를 삭제할까요?',
+        msg: `"${b.name || '이 학생'}"을(를) 목록에서 지웁니다.\n이미 만든 주문 기록은 그대로 남아요.\n잠깐 안 나오는 거라면 삭제 대신 '오늘 쉬어요'를 쓰세요.`,
+        okText: '삭제', okClass: 'danger', cancelText: '취소',
+      });
+      if (!ok) return;
+      await state.backend.remove('baristas', b.id);
+      if (selectedBaristaId === b.id) setSelectedBarista(null);
+      toast('바리스타를 삭제했어요.');
+    };
+
+    actions.append(upBtn, downBtn, offBtn, editBtn, delBtn);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  });
+}
+
+async function moveBarista(id, dir) {
+  const list = sortedBaristas(state.baristas);
+  const idx = list.findIndex((b) => b.id === id);
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= list.length) return;
+  [list[idx], list[j]] = [list[j], list[idx]];
+  await Promise.all(list.map((b, i) => state.backend.set('baristas', b.id, { order: i + 1 })));
+}
+
+// 사진은 메뉴와 같은 방식으로 줄여 저장한다.
+function openBaristaModal(existing) {
+  const isEdit = !!existing;
+  let photo = existing?.photo || null;
+
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  back.innerHTML = `
+    <div class="modal menu-modal">
+      <h3>${isEdit ? '바리스타 수정' : '바리스타 추가'}</h3>
+      <label class="field">
+        <span>이름</span>
+        <input type="text" id="bm-name" maxlength="10" placeholder="예: 김민준">
+      </label>
+      <label class="field">
+        <span>이모지 (사진이 없을 때 표시)</span>
+        <input type="text" id="bm-emoji" maxlength="4" placeholder="🧑‍🍳">
+      </label>
+      <div class="field">
+        <span>사진 (선택)</span>
+        <div class="photo-pick">
+          <div class="photo-preview" id="bm-preview">${photo ? `<img src="${photo}" alt="미리보기">` : '사진 없음'}</div>
+          <input type="file" accept="image/*" id="bm-file" style="display:none">
+          <button type="button" class="btn ghost small" id="bm-pick-btn">사진 선택</button>
+          <button type="button" class="btn ghost small" id="bm-clear-btn" ${photo ? '' : 'disabled'}>사진 지우기</button>
+        </div>
+        <p class="modal-hint" id="bm-hint"></p>
+      </div>
+      <div class="modal-actions">
+        <button class="btn ghost" id="bm-cancel">취소</button>
+        <button class="btn primary" id="bm-save">저장</button>
+      </div>
+    </div>`;
+  document.body.appendChild(back);
+
+  const nameInput = back.querySelector('#bm-name');
+  const emojiInput = back.querySelector('#bm-emoji');
+  const preview = back.querySelector('#bm-preview');
+  const fileInput = back.querySelector('#bm-file');
+  const pickBtn = back.querySelector('#bm-pick-btn');
+  const clearBtn = back.querySelector('#bm-clear-btn');
+  const hint = back.querySelector('#bm-hint');
+  const saveBtn = back.querySelector('#bm-save');
+
+  nameInput.value = existing?.name || '';
+  emojiInput.value = existing?.emoji || '🧑‍🍳';
+  pickBtn.onclick = () => fileInput.click();
+  back.querySelector('#bm-cancel').onclick = () => back.remove();
+
+  function setPreview() {
+    preview.innerHTML = '';
+    if (photo) {
+      const img = document.createElement('img');
+      img.src = photo;
+      img.alt = '미리보기';
+      preview.appendChild(img);
+    } else {
+      preview.textContent = '사진 없음';
+    }
+    clearBtn.disabled = !photo;
+  }
+
+  fileInput.onchange = async () => {
+    const file = fileInput.files[0];
+    fileInput.value = '';
+    if (!file) return;
+    pickBtn.disabled = true;
+    saveBtn.disabled = true;
+    hint.textContent = '사진을 줄이는 중...';
+    try {
+      photo = await shrinkImage(file);
+      setPreview();
+      hint.textContent = '';
+    } catch {
+      hint.textContent = '사진을 불러오지 못했어요. 다른 사진으로 시도해 주세요.';
+    } finally {
+      pickBtn.disabled = false;
+      saveBtn.disabled = false;
+    }
+  };
+  clearBtn.onclick = () => { photo = null; setPreview(); };
+
+  saveBtn.onclick = async () => {
+    const name = nameInput.value.trim();
+    const emoji = emojiInput.value.trim() || '🧑‍🍳';
+    if (!name) { toast('이름을 입력해 주세요.'); return; }
+    if (state.baristas.some((b) => b.name === name && b.id !== existing?.id)) {
+      toast('같은 이름의 바리스타가 이미 있어요.');
+      return;
+    }
+    if (photo && dataUrlBytes(photo) > CONFIG.photoMaxBytes) {
+      toast('사진 용량이 너무 커요. 다른 사진으로 다시 올려 주세요.', { ms: 5000 });
+      return;
+    }
+    saveBtn.disabled = true;
+    try {
+      const patch = { name, emoji, photo };
+      if (isEdit) {
+        await state.backend.set('baristas', existing.id, patch);
+      } else {
+        const maxOrder = state.baristas.reduce((mx, b) => Math.max(mx, Number(b.order) || 0), 0);
+        await state.backend.add('baristas', { ...patch, order: maxOrder + 1, offToday: false, createdAt: Date.now() });
+      }
+      back.remove();
+      toast(isEdit ? '바리스타를 저장했어요.' : '바리스타를 추가했어요.');
+    } finally {
+      saveBtn.disabled = false;
+    }
+  };
+}
+
+// ---- 주문자 탭 ----
+// 자주 주문하는 사람을 미리 등록해 두면 학생이 타일로 고르기만 하면 된다.
+// 이름 표기가 일정해져서 기록 집계도 정확해진다.
+function renderCustomerTab(body) {
+  const list = sortedCustomers(state.customers);
+  body.innerHTML = `
+    <p class="tab-desc">
+      메신저로 주문을 받는 선생님·교실을 미리 등록해 두세요. 주문 화면에서 <b>눌러서 고르기만</b> 하면 됩니다.
+      명단에 없는 손님은 주문할 때 그때그때 적을 수 있어요.
+      <b>받을 장소는 이름에 함께</b> 적어 두시면 가져다 드릴 때 편합니다 (예: 김민수 선생님 (교무실)).
+    </p>
+    <div class="menu-tab-head"><button class="btn primary" id="btn-add-customer">＋ 주문자 추가</button></div>
+    <div class="menu-list" id="customer-list"></div>`;
+  body.querySelector('#btn-add-customer').onclick = () => openCustomerModal();
+
+  const listEl = body.querySelector('#customer-list');
+  if (list.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '등록된 주문자가 없어요. 등록하지 않아도 주문은 그대로 됩니다.';
+    listEl.appendChild(p);
+    return;
+  }
+
+  list.forEach((c, i) => {
+    const row = document.createElement('div');
+    row.className = 'menu-row';
+
+    const thumb = document.createElement('div');
+    thumb.className = 'menu-thumb';
+    thumb.textContent = c.emoji || '🙋';
+    row.appendChild(thumb);
+
+    const info = document.createElement('div');
+    info.className = 'menu-info';
+    const nameEl = document.createElement('div');
+    nameEl.className = 'menu-name';
+    nameEl.textContent = c.name || '(이름 없음)';
+    const sub = document.createElement('div');
+    sub.className = 'menu-price';
+    sub.textContent = '주문 화면에서 고를 수 있어요';
+    info.append(nameEl, sub);
+    row.appendChild(info);
+
+    const actions = document.createElement('div');
+    actions.className = 'menu-actions';
+
+    const upBtn = document.createElement('button');
+    upBtn.className = 'icon-btn';
+    upBtn.textContent = '▲';
+    upBtn.title = '위로';
+    upBtn.disabled = i === 0;
+    upBtn.onclick = () => moveCustomer(c.id, -1);
+
+    const downBtn = document.createElement('button');
+    downBtn.className = 'icon-btn';
+    downBtn.textContent = '▼';
+    downBtn.title = '아래로';
+    downBtn.disabled = i === list.length - 1;
+    downBtn.onclick = () => moveCustomer(c.id, 1);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'btn ghost small';
+    editBtn.textContent = '수정';
+    editBtn.onclick = () => openCustomerModal(c);
+
+    const delBtn = document.createElement('button');
+    delBtn.className = 'btn danger small';
+    delBtn.textContent = '삭제';
+    delBtn.onclick = async () => {
+      const ok = await confirmModal({
+        title: '주문자를 삭제할까요?',
+        msg: `"${c.name}"을(를) 명단에서 지웁니다.\n이미 받은 주문 기록은 그대로 남아요.`,
+        okText: '삭제', okClass: 'danger', cancelText: '취소',
+      });
+      if (!ok) return;
+      await state.backend.remove('customers', c.id);
+      if (orderCustomer.id === c.id) setOrderCustomer({ id: '', name: '' });
+      toast('주문자를 삭제했어요.');
+    };
+
+    actions.append(upBtn, downBtn, editBtn, delBtn);
+    row.appendChild(actions);
+    listEl.appendChild(row);
+  });
+}
+
+async function moveCustomer(id, dir) {
+  const list = sortedCustomers(state.customers);
+  const idx = list.findIndex((c) => c.id === id);
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= list.length) return;
+  [list[idx], list[j]] = [list[j], list[idx]];
+  await Promise.all(list.map((c, i) => state.backend.set('customers', c.id, { order: i + 1 })));
+}
+
+async function openCustomerModal(existing) {
+  const values = await formModal({
+    title: existing ? '주문자 수정' : '주문자 추가',
+    desc: '받을 장소를 괄호로 함께 적어 두면 가져다 드릴 때 편해요.',
+    fields: [
+      { id: 'name', label: '이름 (장소)', value: existing?.name, placeholder: '예: 김민수 선생님 (교무실)' },
+      { id: 'emoji', label: '이모지', value: existing?.emoji || '🙋', placeholder: '🙋' },
+    ],
+    validate: (v) => {
+      if (!v.name) return '이름을 입력해 주세요.';
+      if (state.customers.some((c) => c.name === v.name && c.id !== existing?.id)) return '같은 이름이 이미 있어요.';
+      return null;
+    },
+  });
+  if (!values) return;
+  const patch = { name: values.name, emoji: values.emoji || '🙋' };
+  if (existing) {
+    await state.backend.set('customers', existing.id, patch);
+    toast('주문자를 저장했어요.');
+  } else {
+    const maxOrder = state.customers.reduce((mx, c) => Math.max(mx, Number(c.order) || 0), 0);
+    await state.backend.add('customers', { ...patch, order: maxOrder + 1, createdAt: Date.now() });
+    toast('주문자를 추가했어요.');
+  }
+}
+
+// ---- 자리배치도 상자 하나 그리기 ----
+// 주문 화면(고르기)과 관리 화면(미리보기)이 같은 모양을 쓰도록 한 군데로 모은다.
+// onPick이 있으면 누를 수 있는 칸, 없으면 보기만 하는 칸이다.
+function buildSeatRoomCard(room, cells, { mapped, onPick, placeOnly, onCell } = {}) {
+  const card = document.createElement('div');
+  card.className = 'seat-room'
+    + (room.width === 'narrow' ? ' narrow' : '')
+    + (placeOnly ? ' place-only' : '')
+    + (mapped ? ' mapped' : '')
+    + (mapped && (room.width === 'wide' || room.cols >= 3) ? ' wide' : '');
+  if (mapped) card.style.setProperty('--cols', room.cols);
+
+  const h5 = document.createElement('h5');
+  h5.textContent = room.room;
+  card.appendChild(h5);
+  if (room.note) {
+    const note = document.createElement('p');
+    note.className = 'note';
+    note.textContent = room.note;
+    card.appendChild(note);
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'seat-grid';
+  cells.forEach((person, i) => {
+    if (person.blank) {
+      // 빈 책상 자리. 격자에서 한 칸을 차지해 뒤 칸을 밀어 준다.
+      const hole = document.createElement(onCell ? 'button' : 'div');
+      hole.className = 'seat-blank';
+      if (onCell) {
+        hole.type = 'button';
+        hole.textContent = '빈칸';
+        hole.setAttribute('aria-label', `${i + 1}번째 칸 (빈칸) 고치기`);
+        hole.onclick = () => onCell(i);
+      }
+      grid.appendChild(hole);
+      return;
+    }
+    const cell = document.createElement('button');
+    cell.type = 'button';
+    cell.className = 'seat-cell' + (person.place ? ' place' : '');
+    const name = document.createElement('b');
+    name.textContent = person.name;
+    const tel = document.createElement('small');
+    tel.textContent = [person.title, person.tel].filter(Boolean).join(' · ');
+    cell.append(name, tel);
+    if (mapped) {
+      // 책상 여러 칸을 쓰는 자리(부장·교감 등)는 그만큼 늘린다
+      if (person.span > 1) cell.style.gridColumnEnd = `span ${person.span}`;
+      if (person.rspan > 1) cell.style.gridRowEnd = `span ${person.rspan}`;
+    }
+    if (onCell) {
+      cell.setAttribute('aria-label', `${person.name} 자리 고치기`);
+      cell.onclick = () => onCell(i);
+    } else if (onPick) {
+      cell.setAttribute('aria-label', `${seatLabel(person, room.room)} 주문자로 고르기`);
+      cell.onclick = () => onPick(person);
+    }
+    grid.appendChild(cell);
+  });
+  card.appendChild(grid);
+  return card;
+}
+
+// ---- 자리배치도 탭 ----
+function renderSeatTab(body) {
+  const list = seatMap();
+  const stored = state.seats.length > 0;
+  body.innerHTML = `
+    <p class="tab-desc">
+      주문 화면의 <b>‘🗺️ 자리배치도’</b>에 나오는 명단입니다. 방을 만들고 그 안에 자리를 놓으세요.
+      자리는 <b>왼쪽 위부터 넣은 순서대로</b> 놓입니다 — 책상 사이가 비어 있으면 <b>빈칸</b>을 넣어 밀어 주세요.
+      명단이 비면 주문 화면에서 자리배치도 칸이 저절로 숨고, 주문자는 ‘직접 적기’로만 넣습니다.
+    </p>
+    <div class="menu-tab-head">
+      <button class="btn primary" id="btn-add-room">＋ 방 추가</button>
+      <span id="seat-restore"></span>
+    </div>
+    <div class="seat-admin" id="seat-admin"></div>`;
+  body.querySelector('#btn-add-room').onclick = () => openSeatRoomModal();
+
+  // 기본 명단이 있는데 아직 고친 적이 없으면, 가져와서 고치도록 안내한다.
+  const restore = body.querySelector('#seat-restore');
+  if (!stored && DEFAULT_SEAT_MAP.length) {
+    const hint = document.createElement('small');
+    hint.className = 'seat-restore-hint';
+    hint.textContent = '앱에 들어 있는 기본 명단을 보고 있어요. 고치려면 먼저 가져오세요.';
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.textContent = '기본 명단 가져오기';
+    btn.onclick = importDefaultSeats;
+    restore.append(btn, hint);
+  } else if (stored && DEFAULT_SEAT_MAP.length) {
+    const btn = document.createElement('button');
+    btn.className = 'btn ghost';
+    btn.textContent = '기본 명단으로 되돌리기';
+    btn.onclick = resetSeatsToDefault;
+    restore.appendChild(btn);
+  }
+
+  const listEl = body.querySelector('#seat-admin');
+  if (list.length === 0) {
+    const p = document.createElement('p');
+    p.className = 'empty-hint';
+    p.textContent = '아직 방이 없어요. ‘＋ 방 추가’로 교무실부터 만들어 보세요.';
+    listEl.appendChild(p);
+    return;
+  }
+
+  list.forEach((room, i) => {
+    const wrap = document.createElement('section');
+    wrap.className = 'seat-edit-room';
+
+    const head = document.createElement('div');
+    head.className = 'seat-edit-head';
+    const title = document.createElement('div');
+    title.className = 'seat-edit-title';
+    const b = document.createElement('b');
+    b.textContent = `${room.floor || '(층 없음)'} · ${room.room || '(이름 없음)'}`;
+    const sub = document.createElement('small');
+    const widthLabel = room.width === 'wide' ? '한 줄 전체'
+      : room.width === 'narrow' ? '반의 반 줄' : '반 줄';
+    sub.textContent = [room.note, `${room.cols || 1}칸씩`, widthLabel,
+      `자리 ${seatPeople(room).length}`].filter(Boolean).join(' · ');
+    title.append(b, sub);
+    head.appendChild(title);
+
+    const acts = document.createElement('div');
+    acts.className = 'menu-actions';
+    const mk = (text, title2, fn, disabled) => {
+      const x = document.createElement('button');
+      x.className = 'icon-btn';
+      x.textContent = text;
+      x.title = title2;
+      x.disabled = !!disabled;
+      x.onclick = fn;
+      return x;
+    };
+    acts.append(
+      mk('▲', '위로', () => moveSeatRoom(room.id, -1), !stored || i === 0),
+      mk('▼', '아래로', () => moveSeatRoom(room.id, 1), !stored || i === list.length - 1),
+    );
+    const edit = document.createElement('button');
+    edit.className = 'btn small';
+    edit.textContent = '방 고치기';
+    edit.onclick = () => openSeatRoomModal(room);
+    const del = document.createElement('button');
+    del.className = 'btn small danger';
+    del.textContent = '삭제';
+    del.onclick = () => removeSeatRoom(room);
+    acts.append(edit, del);
+    head.appendChild(acts);
+    wrap.appendChild(head);
+
+    const preview = document.createElement('div');
+    preview.className = 'seat-rooms seat-preview';
+    preview.appendChild(buildSeatRoomCard(room, room.cells || [], {
+      mapped: !!room.cols,
+      placeOnly: seatPeople(room).every((p) => p.place),
+      onCell: (idx) => openSeatCellModal(room, idx),
+    }));
+    wrap.appendChild(preview);
+
+    const add = document.createElement('div');
+    add.className = 'seat-edit-add';
+    const addPerson = document.createElement('button');
+    addPerson.className = 'btn small';
+    addPerson.textContent = '＋ 자리';
+    addPerson.onclick = () => openSeatCellModal(room, -1);
+    const addBlank = document.createElement('button');
+    addBlank.className = 'btn small ghost';
+    addBlank.textContent = '＋ 빈칸';
+    addBlank.onclick = () => addSeatCell(room, { blank: true });
+    add.append(addPerson, addBlank);
+    wrap.appendChild(add);
+
+    listEl.appendChild(wrap);
+  });
+}
+
+// 기본 명단을 저장소로 옮긴다 — 이때부터 관리 화면에서 고칠 수 있다.
+async function importDefaultSeats() {
+  const ok = await confirmModal({
+    title: '기본 명단을 가져올까요?',
+    msg: '앱에 들어 있는 명단을 그대로 복사해 옵니다. 이때부터 관리 화면에서 고칠 수 있어요.',
+    okText: '가져오기',
+  });
+  if (!ok) return;
+  await Promise.all(DEFAULT_SEAT_MAP.map((room, i) =>
+    state.backend.add('seats', { ...room, order: i + 1, createdAt: Date.now() })));
+  await saveSettings({ seatsEdited: true });
+  toast('기본 명단을 가져왔어요. 이제 고칠 수 있습니다.');
+}
+
+async function resetSeatsToDefault() {
+  const ok = await confirmModal({
+    title: '기본 명단으로 되돌릴까요?',
+    msg: '지금 명단을 모두 지우고 앱에 들어 있는 기본 명단으로 바꿉니다. 되돌릴 수 없어요.',
+    okText: '되돌리기', okClass: 'danger',
+  });
+  if (!ok) return;
+  await Promise.all(state.seats.map((r) => state.backend.remove('seats', r.id)));
+  await Promise.all(DEFAULT_SEAT_MAP.map((room, i) =>
+    state.backend.add('seats', { ...room, order: i + 1, createdAt: Date.now() })));
+  toast('기본 명단으로 되돌렸어요.');
+}
+
+// 고치려면 먼저 저장소에 있어야 한다 (기본 명단은 코드 안에 있어 고칠 수 없다).
+async function ensureSeatsStored() {
+  if (state.seats.length) return true;
+  await importDefaultSeats();
+  return state.seats.length > 0;
+}
+
+async function openSeatRoomModal(existing) {
+  if (existing && !(await ensureSeatsStored())) return;
+  const values = await formModal({
+    title: existing ? '방 고치기' : '방 추가',
+    desc: '층과 방 이름은 주문에 남는 이름에도 쓰입니다 (예: 고명희 (4층 본관 교무실)).',
+    fields: [
+      { id: 'floor', label: '층', value: existing?.floor, placeholder: '예: 4층' },
+      { id: 'room', label: '방 이름', value: existing?.room, placeholder: '예: 4층 본관 교무실' },
+      { id: 'note', label: '설명 (없어도 됩니다)', value: existing?.note, placeholder: '예: 1학년부' },
+      { id: 'cols', label: '한 줄에 몇 칸', type: 'number', min: 1, step: 1,
+        value: existing?.cols ?? 4, hint: '책상이 한 줄에 몇 개인지 적으세요.' },
+      { id: 'width', label: '상자 폭', type: 'select', value: existing?.width || 'normal',
+        options: [['normal', '반 줄 (보통)'], ['wide', '한 줄 전체'], ['narrow', '반의 반 줄']] },
+    ],
+    validate: (v) => {
+      if (!v.floor) return '층을 적어 주세요.';
+      if (!v.room) return '방 이름을 적어 주세요.';
+      if (!(Number(v.cols) >= 1)) return '한 줄 칸 수는 1 이상이어야 해요.';
+      return null;
+    },
+  });
+  if (!values) return;
+  const patch = {
+    floor: values.floor, room: values.room, note: values.note || '',
+    cols: Number(values.cols), width: values.width,
+  };
+  if (existing) {
+    await state.backend.set('seats', existing.id, patch);
+    toast('방을 저장했어요.');
+  } else {
+    if (state.seats.length === 0) await saveSettings({ seatsEdited: true });
+    const maxOrder = state.seats.reduce((mx, r) => Math.max(mx, Number(r.order) || 0), 0);
+    await state.backend.add('seats', { ...patch, cells: [], order: maxOrder + 1, createdAt: Date.now() });
+    toast('방을 추가했어요. 이제 자리를 놓아 보세요.');
+  }
+}
+
+async function removeSeatRoom(room) {
+  if (!(await ensureSeatsStored())) return;
+  const ok = await confirmModal({
+    title: `‘${room.room}’을 지울까요?`,
+    msg: '그 방의 자리도 함께 사라집니다. 지난 주문 기록은 그대로 남아요.',
+    okText: '지우기', okClass: 'danger',
+  });
+  if (!ok) return;
+  await state.backend.remove('seats', room.id);
+  toast('방을 지웠어요.');
+}
+
+async function moveSeatRoom(id, dir) {
+  const list = sortedSeatRooms(state.seats);
+  const idx = list.findIndex((r) => r.id === id);
+  const j = idx + dir;
+  if (idx < 0 || j < 0 || j >= list.length) return;
+  [list[idx], list[j]] = [list[j], list[idx]];
+  await Promise.all(list.map((r, i) => state.backend.set('seats', r.id, { order: i + 1 })));
+}
+
+async function saveSeatCells(room, cells) {
+  await state.backend.set('seats', room.id, { cells });
+}
+
+async function addSeatCell(room, cell) {
+  if (!(await ensureSeatsStored())) return;
+  const fresh = state.seats.find((r) => r.id === room.id) || room;
+  await saveSeatCells(fresh, [...(fresh.cells || []), cell]);
+}
+
+// 칸 하나 고치기 — idx가 -1이면 새 자리를 뒤에 붙인다.
+async function openSeatCellModal(room, idx) {
+  if (!(await ensureSeatsStored())) return;
+  const fresh = state.seats.find((r) => r.id === room.id);
+  if (!fresh) return;
+  const cells = [...(fresh.cells || [])];
+  const adding = idx < 0;
+  const cur = adding ? {} : cells[idx] || {};
+
+  // 자리를 옮기고 지우는 길. 고치기 창 안에 함께 두어 창을 여러 번 열지 않게 한다.
+  const moveField = {
+    id: 'action', label: '자리 옮기기 · 지우기', type: 'select', value: 'keep',
+    options: [['keep', '그대로 두기'], ['left', '◀ 한 칸 앞으로'], ['right', '한 칸 뒤로 ▶'],
+      ['delete', '이 칸 지우기']],
+    hint: '칸은 왼쪽 위부터 순서대로 놓입니다. 앞뒤로 옮겨 자리를 맞추세요.',
+  };
+
+  if (cur.blank) {
+    // 빈칸은 고칠 내용이 없다 — 옮기거나 지우기만 한다.
+    const v = await formModal({
+      title: '빈칸',
+      desc: '책상 사이를 벌려 주는 빈 자리입니다.',
+      fields: [moveField],
+      okText: '적용',
+    });
+    if (!v || v.action === 'keep') return;
+    await applySeatCellAction(fresh, cells, idx, v.action);
+    return;
+  }
+
+  const fields = [
+    { id: 'name', label: '이름', value: cur.name, placeholder: '예: 고명희' },
+    { id: 'title', label: '직책 (없어도 됩니다)', value: cur.title, placeholder: '예: 1학년부장' },
+    { id: 'tel', label: '전화 (없어도 됩니다)', value: cur.tel, placeholder: '예: 100(863)' },
+    { id: 'span', label: '가로로 몇 칸', type: 'number', min: 1, step: 1, value: cur.span || 1 },
+    { id: 'rspan', label: '세로로 몇 칸', type: 'number', min: 1, step: 1, value: cur.rspan || 1 },
+    { id: 'place', label: '사람이 아닌 공간인가요', type: 'select',
+      value: cur.place ? 'yes' : 'no',
+      options: [['no', '아니요 — 사람 자리'], ['yes', '네 — 미술실 같은 공간']],
+      hint: '공간으로 두면 주문에 방 이름 없이 그 이름만 남습니다.' },
+  ];
+  if (!adding) fields.push(moveField);
+
+  const values = await formModal({
+    title: adding ? '자리 추가' : '자리 고치기',
+    desc: '전화번호는 교무실 내선번호처럼 짧게 적어도 됩니다.',
+    fields,
+    validate: (v) => {
+      if (v.action === 'delete') return null;      // 지울 거면 이름이 비어도 된다
+      if (!v.name) return '이름을 적어 주세요.';
+      const span = Number(v.span);
+      if (!(span >= 1)) return '가로 칸 수는 1 이상이어야 해요.';
+      if (fresh.cols && span > fresh.cols) return `가로 칸 수가 한 줄(${fresh.cols}칸)보다 클 수 없어요.`;
+      if (!(Number(v.rspan) >= 1)) return '세로 칸 수는 1 이상이어야 해요.';
+      return null;
+    },
+  });
+  if (!values) return;
+
+  if (values.action === 'delete') {
+    await applySeatCellAction(fresh, cells, idx, 'delete');
+    toast('자리를 지웠어요.');
+    return;
+  }
+
+  const cell = { name: values.name };
+  if (values.title) cell.title = values.title;
+  if (values.tel) cell.tel = values.tel;
+  if (values.place === 'yes') cell.place = true;
+  if (Number(values.span) > 1) cell.span = Number(values.span);
+  if (Number(values.rspan) > 1) cell.rspan = Number(values.rspan);
+
+  if (adding) cells.push(cell);
+  else cells[idx] = cell;
+
+  if (values.action === 'left' || values.action === 'right') {
+    await applySeatCellAction(fresh, cells, idx, values.action);
+  } else {
+    await saveSeatCells(fresh, cells);
+  }
+  toast(adding ? '자리를 놓았어요.' : '자리를 고쳤어요.');
+}
+
+async function applySeatCellAction(room, cells, idx, what) {
+  if (what === 'delete') {
+    cells.splice(idx, 1);
+  } else {
+    const j = idx + (what === 'left' ? -1 : 1);
+    if (j < 0 || j >= cells.length) return;
+    [cells[idx], cells[j]] = [cells[j], cells[idx]];
+  }
+  await saveSeatCells(room, cells);
+}
+
+
 // ---- 재고 반영 (Task 13) ----
 // 재료 수량을 늘리고 줄이는 유일한 길. 기록(stockLogs)은 쓰기만 하고 구독하지 않는다 —
 // 판매마다 쌓이므로 모든 기기가 통째로 받으면 금방 무료 한도를 넘는다.
@@ -2454,11 +3604,12 @@ async function loadRecords(force = false) {
   recordsLoading = true;
   render();
   try {
-    const [orders, logs] = await Promise.all([
+    const [orders, logs, feedbacks] = await Promise.all([
       state.backend.queryRange('orders', 'businessDate', from, to),
       state.backend.queryRange('stockLogs', 'businessDate', from, to),
+      state.backend.queryRange('feedbacks', 'businessDate', from, to).catch(() => []),
     ]);
-    recordsCache = { key, orders, logs, loadedAt: Date.now() };
+    recordsCache = { key, orders, logs, feedbacks, loadedAt: Date.now() };
   } catch (err) {
     console.error(err);
     recordsCache = { key, error: true };
@@ -2542,6 +3693,7 @@ function renderRecordsTab(body) {
   meta.textContent += ` · ${hhmm(recordsCache.loadedAt)}에 불러옴`;
 
   const { orders, logs } = recordsCache;
+  const feedbacks = recordsCache.feedbacks || [];
   const sum = summarize(orders, from, to);
 
   // ---- 요약 ----
@@ -2605,6 +3757,59 @@ function renderRecordsTab(body) {
     }
   }
 
+  // ---- 바리스타별 ----
+  const byBarista = baristaSummary(orders, from, to);
+  if (byBarista.length) {
+    const bSec = section('바리스타별 판매');
+    const max = byBarista[0].qty || 1;
+    for (const b of byBarista) {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const name = document.createElement('span');
+      name.className = 'bar-name';
+      name.textContent = b.name;
+      const track = document.createElement('span');
+      track.className = 'bar-track';
+      track.setAttribute('aria-hidden', 'true');
+      const barEl = document.createElement('span');
+      barEl.className = 'bar';
+      barEl.style.width = `${(b.qty / max) * 100}%`;
+      track.appendChild(barEl);
+      const qty = document.createElement('b');
+      qty.className = 'bar-qty';
+      qty.textContent = `${b.qty}잔 · ${b.orderCount}건`;
+      row.append(name, track, qty);
+      bSec.appendChild(row);
+    }
+  }
+
+  // ---- 주문자별 (원격 주문 확인용) ----
+  const byCustomer = customerSummary(orders, from, to);
+  // 현장 손님만 있으면 보여 줄 게 없다
+  if (byCustomer.some((c) => c.name !== '현장 손님')) {
+    const cSec = section('주문자별');
+    const max = byCustomer[0].orderCount || 1;
+    for (const c of byCustomer) {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const name = document.createElement('span');
+      name.className = 'bar-name';
+      name.textContent = c.name;
+      const track = document.createElement('span');
+      track.className = 'bar-track';
+      track.setAttribute('aria-hidden', 'true');
+      const barEl = document.createElement('span');
+      barEl.className = 'bar';
+      barEl.style.width = `${(c.orderCount / max) * 100}%`;
+      track.appendChild(barEl);
+      const qty = document.createElement('b');
+      qty.className = 'bar-qty';
+      qty.textContent = `${c.orderCount}건 · ${c.qty}잔`;
+      row.append(name, track, qty);
+      cSec.appendChild(row);
+    }
+  }
+
   // ---- 시간대별 ----
   if (sum.totalQty > 0) {
     const hourSec = section('시간대별 판매');
@@ -2630,6 +3835,117 @@ function renderRecordsTab(body) {
       chart.appendChild(col);
     }
     hourSec.appendChild(chart);
+  }
+
+  // ---- 손님 평가 ----
+  const fb = feedbackSummary(feedbacks);
+  const fbSec = section(`손님 평가 (${fb.total}건)`);
+  if (fb.total === 0) {
+    const p = document.createElement('p');
+    p.className = 'rec-meta';
+    p.textContent = '아직 받은 평가가 없어요. 카운터에 붙인 QR로 손님이 남길 수 있어요.';
+    fbSec.appendChild(p);
+  } else {
+    const cards2 = document.createElement('div');
+    cards2.className = 'rec-cards';
+    const acc = fb.accurateTotal ? Math.round((fb.accurateYes / fb.accurateTotal) * 100) : null;
+    const items = [
+      ['음료 평균', fb.drinkAvg != null ? `${fb.drinkAvg} / 4` : '—'],
+      ['주문대로 나옴', acc != null ? `${acc}%` : '—'],
+      ['빨랐어요', `${fb.speed.fast}건`],
+      ['오래 걸렸어요', `${fb.speed.slow}건`],
+    ];
+    for (const [label, value] of items) {
+      const c = document.createElement('div');
+      c.className = 'rec-card';
+      const sm = document.createElement('small');
+      sm.textContent = label;
+      const b = document.createElement('b');
+      b.textContent = value;
+      c.append(sm, b);
+      cards2.appendChild(c);
+    }
+    fbSec.appendChild(cards2);
+
+    // 음료 점수 분포 — 얼굴로 보여 준다
+    const faces = ['😞 별로예요', '😐 괜찮아요', '🙂 맛있어요', '😄 최고예요'];
+    const maxD = Math.max(...fb.drinkCounts.map((d) => d.count), 1);
+    for (const d of [...fb.drinkCounts].reverse()) {
+      const row = document.createElement('div');
+      row.className = 'bar-row';
+      const name = document.createElement('span');
+      name.className = 'bar-name';
+      name.textContent = faces[d.score - 1];
+      const track = document.createElement('span');
+      track.className = 'bar-track';
+      track.setAttribute('aria-hidden', 'true');
+      const barEl = document.createElement('span');
+      barEl.className = 'bar';
+      barEl.style.width = `${(d.count / maxD) * 100}%`;
+      track.appendChild(barEl);
+      const qty = document.createElement('b');
+      qty.className = 'bar-qty';
+      qty.textContent = `${d.count}건`;
+      row.append(name, track, qty);
+      fbSec.appendChild(row);
+    }
+
+    // 학생별 칭찬 — 점수가 아니라 칭찬 개수만
+    if (fb.byBarista.length) {
+      const h = document.createElement('h3');
+      h.style.marginTop = '16px';
+      h.textContent = '학생별 받은 칭찬';
+      fbSec.appendChild(h);
+      const table = document.createElement('table');
+      table.className = 'rec-table';
+      table.innerHTML = '<thead><tr><th>바리스타</th><th>받은 칭찬</th><th>평가 수</th></tr></thead>';
+      const tb = document.createElement('tbody');
+      for (const b of fb.byBarista) {
+        const tr = document.createElement('tr');
+        for (const v of [b.name || '(이름 없음)', `${b.praises}개`, `${b.count}건`]) {
+          const td = document.createElement('td');
+          td.textContent = v;
+          tr.appendChild(td);
+        }
+        tb.appendChild(tr);
+      }
+      table.appendChild(tb);
+      fbSec.appendChild(table);
+    }
+
+    if (fb.praises.length) {
+      const h = document.createElement('h3');
+      h.style.marginTop = '16px';
+      h.textContent = '많이 받은 칭찬';
+      fbSec.appendChild(h);
+      const ul = document.createElement('ul');
+      ul.className = 'rec-list';
+      for (const x of fb.praises) {
+        const li = document.createElement('li');
+        li.textContent = `${x.text} — ${x.count}번`;
+        ul.appendChild(li);
+      }
+      fbSec.appendChild(ul);
+    }
+
+    if (fb.comments.length) {
+      const h = document.createElement('h3');
+      h.style.marginTop = '16px';
+      h.textContent = `손님이 남긴 말 (${fb.comments.length})`;
+      fbSec.appendChild(h);
+      const note = document.createElement('p');
+      note.className = 'rec-meta';
+      note.textContent = '선생님만 보입니다. 학생에게 읽어 줄 때는 골라서 전해 주세요.';
+      fbSec.appendChild(note);
+      const ul = document.createElement('ul');
+      ul.className = 'rec-list';
+      for (const c of fb.comments) {
+        const li = document.createElement('li');
+        li.textContent = `${c.orderNo}번${c.baristaName ? ` · ${c.baristaName}` : ''} — “${c.comment.trim()}”`;
+        ul.appendChild(li);
+      }
+      fbSec.appendChild(ul);
+    }
   }
 
   // ---- 재료 사용 ----
@@ -2684,21 +4000,41 @@ function renderRecordsTab(body) {
     ['합계', sum.totalQty, ...(showPrice ? [sum.totalAmount] : [])],
     ['주문 건수', sum.orderCount],
     ['취소 건수', sum.cancelledCount],
+    [],
+    ['바리스타', '만든 잔 수', '주문 건수'],
+    ...byBarista.map((b) => [b.name, b.qty, b.orderCount]),
+    [],
+    ['주문자', '주문 건수', '잔 수'],
+    ...byCustomer.map((c) => [c.name, c.orderCount, c.qty]),
   ]);
+  const b3 = document.createElement('button');
+  b3.className = 'btn ghost small';
+  b3.textContent = '손님 평가 (CSV)';
+  b3.disabled = fb.total === 0;
+  b3.onclick = () => downloadCsv(`${CONFIG.cafeName}_손님평가_${span}.csv`, [
+    ['영업일', '시각', '주문번호', '바리스타', '음료(1~4)', '주문대로', '기다린 시간', '칭찬', '남긴 말'],
+    ...[...feedbacks].sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0)).map((f) => [
+      f.businessDate, hhmm(f.createdAt), f.orderNo, f.baristaName || '', f.drink ?? '',
+      typeof f.accurate === 'boolean' ? (f.accurate ? '맞음' : '다름') : '',
+      SPEED_LABEL[f.speed] || '', (f.praises || []).join(' / '), (f.comment || '').trim(),
+    ]),
+  ]);
+
   const b2 = document.createElement('button');
   b2.className = 'btn ghost small';
   b2.textContent = '주문 내역 (CSV)';
   b2.onclick = () => downloadCsv(`${CONFIG.cafeName}_주문내역_${span}.csv`, [
-    ['영업일', '주문 시각', '주문번호', '상태', '메뉴', '잔 수', ...(showPrice ? ['금액'] : [])],
+    ['영업일', '주문 시각', '주문번호', '주문자', '바리스타', '상태', '메뉴', '잔 수', ...(showPrice ? ['금액'] : [])],
     ...orders.filter((o) => inRange(o, from, to))
       .sort((a, b) => (a.createdAt || 0) - (b.createdAt || 0))
       .map((o) => [
-        o.businessDate, hhmm(o.createdAt), o.orderNo, STATUS_LABEL[o.status] || o.status, itemsText(o),
+        o.businessDate, hhmm(o.createdAt), o.orderNo, (o.customerName || '').trim(), o.baristaName || '',
+        STATUS_LABEL[o.status] || o.status, itemsText(o),
         (o.items || []).reduce((n, it) => n + (Number(it.qty) || 0), 0),
         ...(showPrice ? [o.total || 0] : []),
       ]),
   ]);
-  act.append(b1, b2);
+  act.append(b1, b2, b3);
   dl.appendChild(act);
 }
 
@@ -2764,6 +4100,11 @@ function renderSettingsTab(body) {
         <span>제조 지연 강조 기준 (분)</span>
         <input type="number" id="set-late" min="1" step="1">
       </label>
+      <label class="field">
+        <span>매니저 화면에 수령 완료를 남겨 둘 시간 (분)</span>
+        <input type="number" id="set-picked" min="0" step="1">
+        <small class="hint">이 시간이 지나면 매니저 보드에서 사라져요. 기록은 관리 → 기록에 그대로 남습니다. 0으로 두면 수령하자마자 사라져요.</small>
+      </label>
       <label class="check">
         <input type="checkbox" id="set-fullscreen">
         호출 화면을 전체화면으로 열기
@@ -2816,17 +4157,23 @@ function renderSettingsTab(body) {
   body.querySelector('#set-pin').value = s.pin || CONFIG.defaults.pin;
   body.querySelector('#set-fontscale').value = s.fontScale || CONFIG.defaults.fontScale;
   body.querySelector('#set-late').value = s.lateMinutes ?? CONFIG.defaults.lateMinutes;
+  body.querySelector('#set-picked').value = s.pickedUpVisibleMinutes ?? CONFIG.pickedUpVisibleMinutes;
   body.querySelector('#set-fullscreen').checked = s.displayFullscreen ?? CONFIG.defaults.displayFullscreen;
   body.querySelector('#set-chime').checked = s.chime ?? CONFIG.defaults.chime;
   body.querySelector('#set-save').onclick = async () => {
     const pin = body.querySelector('#set-pin').value.trim();
     const fontScale = body.querySelector('#set-fontscale').value;
     const lateMinutes = Number(body.querySelector('#set-late').value);
+    const pickedUpVisibleMinutes = Number(body.querySelector('#set-picked').value);
     const displayFullscreen = body.querySelector('#set-fullscreen').checked;
     const chime = body.querySelector('#set-chime').checked;
     if (!/^\d{4}$/.test(pin)) { toast('비밀번호는 숫자 4자리로 입력해 주세요.', { ms: 4000 }); return; }
     if (!Number.isFinite(lateMinutes) || lateMinutes < 1) { toast('지연 기준은 1분 이상 숫자로 입력해 주세요.', { ms: 4000 }); return; }
-    await saveSettings({ pin, fontScale, lateMinutes, displayFullscreen, chime });
+    if (!Number.isFinite(pickedUpVisibleMinutes) || pickedUpVisibleMinutes < 0) {
+      toast('수령 완료를 남겨 둘 시간은 0 이상 숫자로 입력해 주세요.', { ms: 4000 });
+      return;
+    }
+    await saveSettings({ pin, fontScale, lateMinutes, pickedUpVisibleMinutes, displayFullscreen, chime });
     toast('설정을 저장했어요.');
   };
 
@@ -2850,6 +4197,7 @@ function renderSettingsTab(body) {
 // ---- 리허설 기록 지우기 (원래 Task 19 · Phase 2 끝으로 앞당김) ----
 // 기록만 지운다. 메뉴 · 재료 · 설정은 남긴다 — 리허설 뒤에 메뉴를 다시 등록하게 만들면 안 된다.
 // 화면이 들고 있는 주문은 최근 며칠 것뿐이라, 데이터베이스에서 직접 찾아 지운다.
+// feedbacks(고객 평가)는 일부러 뺐다 — 리허설 기록을 지워도 평가는 남긴다 (선생님 결정).
 const RECORD_COLLECTIONS = ['orders', 'stockLogs', 'counterResets', 'counters'];
 
 async function clearRecordsFlow() {
@@ -2922,6 +4270,77 @@ let cart = [];              // [{ menuId, name, photo, emoji, price, qty }]
 let orderNoShown = null;    // 방금 발번한 번호. 있으면 큰 번호 화면을 보여준다.
 let orderNoTimer = null;    // 번호 화면 자동 복귀 타이머 (재렌더마다 새로 잡지 않는다)
 let submitting = false;     // 발번 중 중복 탭 방지
+
+// ---- 바리스타 고르기 ----
+// 한 학생이 연속으로 여러 잔을 만드는 일이 많아, 한 번 고르면 바꿀 때까지 유지한다.
+// 기기마다 기억하므로 주문 태블릿을 껐다 켜도 그대로다.
+let selectedBaristaId = null;
+let baristaFilterId = null;   // 제조 화면 '내 주문만 보기'
+// 누가 시켰는지. 비워 두면 카운터 앞 손님(현장 손님)이다.
+// 주문을 넣고 나면 비운다 — 다음 손님 주문에 앞사람 이름이 딸려 가면 안 된다.
+let orderCustomer = { id: '', name: '' };
+function setOrderCustomer(next) {
+  orderCustomer = { id: next.id || '', name: (next.name || '').trim() };
+  render();
+}
+
+function setSelectedBarista(id) {
+  selectedBaristaId = id;
+  try {
+    if (id) localStorage.setItem(CONFIG.baristaKey, id);
+    else localStorage.removeItem(CONFIG.baristaKey);
+  } catch { /* 저장을 막아 둔 기기에서도 이번 세션은 그대로 쓴다 */ }
+  render();
+}
+
+// 고른 학생이 지워졌거나 '쉬는 날'로 바뀌었으면 고르지 않은 것으로 본다.
+function currentBarista() {
+  return activeBaristas(state.baristas).find((b) => b.id === selectedBaristaId) || null;
+}
+
+// 사진(없으면 이모지) 동그라미 한 개. 여러 화면에서 같은 모양으로 쓴다.
+function buildBaristaFace(barista, cls = 'bt-photo') {
+  const box = document.createElement('div');
+  box.className = cls;
+  if (barista?.photo) {
+    const img = document.createElement('img');
+    img.src = barista.photo;
+    img.alt = '';
+    box.appendChild(img);
+  } else {
+    box.textContent = barista?.emoji || '🧑‍🍳';
+  }
+  return box;
+}
+
+// 누가 시켰는지 표. 카운터 앞 손님(이름 없음)에는 붙이지 않는다.
+function buildCustomerChip(order) {
+  const name = (order.customerName || '').trim();
+  if (!name) return null;
+  const chip = document.createElement('span');
+  chip.className = 'cust-chip';
+  const em = document.createElement('span');
+  em.textContent = '🙋';
+  em.setAttribute('aria-hidden', 'true');
+  const text = document.createElement('span');
+  text.textContent = name;
+  chip.append(em, text);
+  chip.title = `주문자: ${name}`;
+  return chip;
+}
+
+// 제조·매니저 카드에 "누가 만들어요"를 붙인다. 고르지 않은 주문에는 아무것도 붙이지 않는다.
+function buildWhoChip(order) {
+  if (!order.baristaId && !order.baristaName) return null;
+  const found = state.baristas.find((b) => b.id === order.baristaId);
+  const chip = document.createElement('span');
+  chip.className = 'who-chip';
+  const name = document.createElement('span');
+  name.textContent = order.baristaName || found?.name || '';
+  chip.append(buildBaristaFace(found, 'bt-photo'), name);
+  chip.title = `${name.textContent} 바리스타`;
+  return chip;
+}
 
 // 메뉴 타일 — 사진(또는 이모지) + 이름이 한 버튼 안에 함께 있다.
 // 품절이면 disabled로 두어 "누를 수 없는 버튼"을 실제로 누를 수 없게 만든다.
@@ -3213,16 +4632,21 @@ function attachScrollCue(pane, cue, truncated) {
 
 // 주문 화면 본체 — 왼쪽 메뉴 타일 / 오른쪽 담은 내용.
 function renderOrderCartScreen(el) {
-  watchOrderScreenResize();   // 최초 1회만 실제로 옵저버를 만든다(내부에서 중복 방지)
 
-  const wrap = document.createElement('div');
-  wrap.className = 'order-screen';
+  // 왼쪽에 [주문자 + 바리스타·메뉴], 오른쪽에 담은 주문을 위아래로 꽉 채워 둔다.
+  const page = document.createElement('div');
+  page.className = 'order-page';
+  const main = document.createElement('div');
+  main.className = 'order-main';
+  main.appendChild(buildCustomerBar());
 
   // ---- 왼쪽: 메뉴 타일 ----
   // .order-menu(틀) 안에 [.menu-scroll(스크롤 영역) + 화살표]를 쌓는다.
   // 화살표가 스크롤 영역 "밖"에 있어야 타일 줄과 절대 겹치지 않는다.
   const menuPane = document.createElement('div');
   menuPane.className = 'order-menu';
+  // 바리스타 줄은 메뉴와 함께 스크롤된다 — 화면 높이를 고정으로 먹지 않게.
+  menuPane.appendChild(buildBaristaPicker());
   const menuScroll = document.createElement('div');
   menuScroll.className = 'menu-scroll';
   const grid = document.createElement('div');
@@ -3299,26 +4723,413 @@ function renderOrderCartScreen(el) {
     cartPane.appendChild(totalEl);
   }
 
+  // 누가 시켰는지 (선택). 원격 주문일 때만 고르면 된다.
+  const custBtn = document.createElement('button');
+  custBtn.type = 'button';
+  custBtn.className = 'cust-pick' + (orderCustomer.name ? ' on' : '');
+  const custLabel = document.createElement('span');
+  custLabel.className = 'label';
+  custLabel.textContent = '🙋 주문자';
+  const custWho = document.createElement('span');
+  custWho.className = 'who';
+  custWho.textContent = orderCustomer.name || '현장 손님 (누르면 고를 수 있어요)';
+  const custArrow = document.createElement('span');
+  custArrow.className = 'label';
+  custArrow.textContent = '▸';
+  custBtn.append(custLabel, custWho, custArrow);
+  custBtn.setAttribute('aria-label', `주문자 고르기. 지금은 ${orderCustomer.name || '현장 손님'}`);
+  custBtn.onclick = openCustomerPicker;
+  cartPane.appendChild(custBtn);
+
+  // 누가 만드는지 한 번 더 보여 주고, 고르지 않았으면 주문을 막는다.
+  const picked = currentBarista();
+  if (picked) {
+    const who = document.createElement('div');
+    who.className = 'cart-barista';
+    const txt = document.createElement('span');
+    txt.innerHTML = '만드는 사람: ';
+    const b = document.createElement('b');
+    b.textContent = picked.name;
+    txt.appendChild(b);
+    who.append(buildBaristaFace(picked), txt);
+    cartPane.appendChild(who);
+  } else if (activeBaristas(state.baristas).length > 0) {
+    const need = document.createElement('p');
+    need.className = 'need-barista';
+    need.textContent = '맨 위에서 만드는 사람을 먼저 골라 주세요';
+    cartPane.appendChild(need);
+  }
+
   const submitBtn = document.createElement('button');
   submitBtn.type = 'button';
   submitBtn.className = 'btn primary big';
   submitBtn.textContent = '주문하기';
-  submitBtn.disabled = cart.length === 0 || submitting;
+  // 바리스타가 아직 한 명도 등록되지 않았다면 예전처럼 그냥 주문할 수 있게 둔다.
+  const needsBarista = activeBaristas(state.baristas).length > 0 && !picked;
+  submitBtn.disabled = cart.length === 0 || submitting || needsBarista;
   submitBtn.onclick = () => submitOrder();
   cartPane.appendChild(submitBtn);
 
-  wrap.append(menuPane, cartPane);
-  el.appendChild(wrap);
+  main.appendChild(menuPane);
+  page.append(main, cartPane);
+  el.appendChild(page);
 
   // DOM에 실제로 붙은 뒤에만 렌더된 크기를 잴 수 있다 — 타일/카드 줄이 잘리지 않게
   // 여기서 두 패널의 높이를 함께 맞추고(layoutOrderPanels), 더 있을 때만 스크롤
   // 화살표를 켠다.
-  const { cartTruncated, menuTruncated } = layoutOrderPanels(
-    menuPane, menuScroll, [...grid.querySelectorAll('.tile')],
-    cartPane, list, cartScroll, [...cartScroll.querySelectorAll('.cart-card')],
-  );
-  attachScrollCue(cartScroll, cartCue, cartTruncated);
-  attachScrollCue(menuScroll, menuCue, menuTruncated);
+  // 예전에는 두 패널의 높이를 재서 줄 단위로 잘라 냈다(layoutOrderPanels).
+  // 지금은 메뉴를 모두 펼쳐 두고 페이지가 스크롤되므로 잘라 낼 것이 없다.
+}
+
+// 주문 화면 맨 위 — 누가 주문하는지 고르는 줄.
+// 메신저로 받은 원격 주문을 남기려면 여기서 먼저 고른다.
+function buildCustomerBar() {
+  const sec = document.createElement('section');
+  sec.className = 'cust-bar' + (orderCustomer.name ? '' : ' empty');
+
+  const head = document.createElement('div');
+  head.className = 'barista-head';
+  const h2 = document.createElement('h2');
+  h2.textContent = '🙋 누가 주문하나요?';
+  const hint = document.createElement('span');
+  hint.className = 'pick-hint';
+  hint.textContent = orderCustomer.name
+    ? '바꾸려면 다른 칸을 누르세요'
+    : (CONFIG.showWalkInTile
+      ? '카운터 앞 손님이면 그대로 두세요 · 메신저 주문이면 골라 주세요'
+      : '주문하신 분을 골라 주세요');
+  head.append(h2, hint);
+  sec.appendChild(head);
+
+  const strip = document.createElement('div');
+  strip.className = 'cust-strip';
+  strip.setAttribute('role', 'group');
+  strip.setAttribute('aria-label', '주문자 고르기');
+
+  const addTile = (emoji, name, on, onclick, extraClass = '') => {
+    const t = document.createElement('button');
+    t.type = 'button';
+    t.className = `ct${on ? ' on' : ''}${extraClass ? ' ' + extraClass : ''}`;
+    t.setAttribute('aria-pressed', String(on));
+    const em = document.createElement('span');
+    em.className = 'em';
+    em.textContent = emoji;
+    em.setAttribute('aria-hidden', 'true');
+    const nm = document.createElement('span');
+    nm.className = 'nm';
+    nm.textContent = name;
+    t.append(em, nm);
+    t.onclick = () => { onclick(); navigator.vibrate?.(20); };
+    strip.appendChild(t);
+    return t;
+  };
+
+  // 카운터 앞 손님이 기본이다. 숨겨 둔 동안에도 '직접 적기' 창의 [현장 손님으로]로 되돌릴 수 있다.
+  if (CONFIG.showWalkInTile) {
+    addTile('🏪', '현장 손님', !orderCustomer.name, () => setOrderCustomer({ id: '', name: '' }));
+  }
+
+  for (const c of sortedCustomers(state.customers)) {
+    const on = orderCustomer.id === c.id;
+    addTile(c.emoji || '🙋', c.name, on, () => setOrderCustomer(on ? { id: '', name: '' } : { id: c.id, name: c.name }));
+  }
+
+  // 자리배치도에서 고르기 — 선생님 이름을 외우지 않아도 자리로 찾을 수 있다.
+  // 명단이 비어 있으면 눌러도 빈 창만 뜨므로 아예 숨긴다 (관리 → 자리배치도에서 채운다).
+  if (seatMap().length) addTile('🗺️', '자리배치도', false, openSeatPicker, 'seats');
+
+  // 명단에 없는 손님 — 직접 적는다. 적어 둔 이름이 있으면 그 이름을 보여 준다.
+  const typed = !orderCustomer.id && orderCustomer.name;
+  addTile('✏️', typed ? orderCustomer.name : '직접 적기', !!typed, openCustomerPicker, 'write');
+
+  sec.appendChild(strip);
+  return sec;
+}
+
+// 자리배치도에서 고르기 — 사진을 띄우고, 그 아래 이름 버튼으로 고른다.
+// 사진 위를 직접 누르게 하지 않는 이유: 글자가 작아 손가락으로 정확히 짚기 어렵고,
+// 자리가 바뀔 때마다 좌표를 다시 잡아야 한다. 사진은 '어디쯤인지' 보는 용도다.
+function openSeatPicker() {
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  const modal = document.createElement('div');
+  modal.className = 'modal seat-modal';
+
+  const h = document.createElement('h3');
+  h.textContent = '자리배치도에서 고르기';
+  modal.appendChild(h);
+  const lead = document.createElement('p');
+  lead.className = 'tab-desc';
+  lead.textContent = '층을 눌러 펼친 뒤, 주문하신 선생님을 눌러 주세요. 이름으로 바로 찾아도 됩니다.';
+  modal.appendChild(lead);
+
+  const search = document.createElement('label');
+  search.className = 'field seat-search';
+  const sLabel = document.createElement('span');
+  sLabel.textContent = '이름으로 찾기';
+  const input = document.createElement('input');
+  input.type = 'search';
+  input.placeholder = '예: 고명희 · 교무실 · 보건';
+  search.append(sLabel, input);
+  modal.appendChild(search);
+
+  const body = document.createElement('div');
+  body.className = 'seat-body';
+
+  const rooms = document.createElement('div');
+  body.appendChild(rooms);
+  modal.appendChild(body);
+
+  // 칸이 작아 옆자리를 누를 수 있다 — 고르기 전에 한 번 확인받는다.
+  // 배치도 창 위에 겹쳐 띄운다. 아래에 깔리면 눌러도 아무 일 없는 것처럼 보인다.
+  let ask = null;
+  function closeAsk() {
+    if (ask) { ask.remove(); ask = null; }
+  }
+  function askSeat(person, room) {
+    closeAsk();
+    ask = document.createElement('div');
+    ask.className = 'seat-confirm-back';
+    const bubble = document.createElement('div');
+    bubble.className = 'seat-confirm';
+    const text = document.createElement('p');
+    text.textContent = seatLabel(person, room.room);
+    const sub2 = document.createElement('small');
+    sub2.textContent = [person.title, person.tel].filter(Boolean).join(' · ');
+    text.appendChild(sub2);
+    const row = document.createElement('div');
+    row.className = 'row';
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'btn ghost';
+    no.textContent = '아니요';
+    no.onclick = closeAsk;
+    const yes = document.createElement('button');
+    yes.type = 'button';
+    yes.className = 'btn ok';
+    yes.textContent = '이분이에요';
+    yes.onclick = () => {
+      closeAsk();
+      back.remove();
+      setOrderCustomer({ id: '', name: seatLabel(person, room.room) });
+    };
+    row.append(no, yes);
+    bubble.append(text, row);
+    // 어두운 바탕을 눌러도 닫는다. 창 안을 누른 것은 닫지 않는다.
+    ask.onclick = (e) => { if (e.target === ask) closeAsk(); };
+    ask.appendChild(bubble);
+    document.body.appendChild(ask);
+    yes.focus();
+  }
+
+  function draw(query = '') {
+    const q = query.trim().toLowerCase();
+    rooms.innerHTML = '';
+    let shown = 0;
+
+    // 층 → 교무실 순서로 늘어놓는다
+    const floors = [];
+    for (const room of seatMap()) {
+      const hit = (c) => !q
+        || (c.name || '').toLowerCase().includes(q)
+        || (c.title || '').toLowerCase().includes(q)
+        || room.room.toLowerCase().includes(q)
+        || (room.note || '').toLowerCase().includes(q)
+        || (room.floor || '').toLowerCase().includes(q);
+      // 검색 중에는 찾은 사람만 추리고 빈칸을 버린다. 격자를 그대로 두면
+      // 걸러진 자리마다 구멍이 뚫려 보기 나쁘다.
+      const cells = q ? seatPeople(room).filter(hit) : (room.cells || []);
+      const people = cells.filter((c) => !c.blank && c.name);
+      if (people.length === 0) continue;
+      shown += people.length;
+      let floor = floors.find((f) => f.name === room.floor);
+      if (!floor) { floor = { name: room.floor, rooms: [] }; floors.push(floor); }
+      floor.rooms.push({ room, cells, people });
+    }
+
+    for (const floor of floors) {
+      const sec = document.createElement('details');
+      sec.className = 'seat-floor';
+      // 검색 중에는 결과가 있는 층을 열어 둔다. 평소에는 모두 접어 두어 한눈에 들어오게.
+      sec.open = !!q || (floors.length === 1);
+      const head = document.createElement('summary');
+      head.appendChild(document.createTextNode(floor.name));
+      const count = document.createElement('span');
+      count.className = 'count';
+      const n = floor.rooms.reduce((sum, r) => sum + r.people.length, 0);
+      count.textContent = `${n}자리`;
+      head.appendChild(count);
+      sec.appendChild(head);
+
+      const grid = document.createElement('div');
+      grid.className = 'seat-rooms';
+      for (const { room, cells, people } of floor.rooms) {
+        grid.appendChild(buildSeatRoomCard(room, cells, {
+          mapped: !!room.cols && !q,
+          onPick: (person) => askSeat(person, room),
+          placeOnly: people.every((p) => p.place),
+        }));
+      }
+      sec.appendChild(grid);
+      rooms.appendChild(sec);
+    }
+
+    if (shown === 0) {
+      const none = document.createElement('p');
+      none.className = 'seat-empty';
+      none.textContent = '찾는 이름이 없어요. 철자를 확인하거나 ‘직접 적기’를 써 주세요.';
+      rooms.appendChild(none);
+    }
+  }
+
+  input.oninput = () => draw(input.value);
+  draw();
+
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const cancel = document.createElement('button');
+  cancel.className = 'btn ghost';
+  cancel.textContent = '닫기';
+  cancel.onclick = () => { closeAsk(); back.remove(); };
+  actions.appendChild(cancel);
+  modal.appendChild(actions);
+
+  back.appendChild(modal);
+  document.body.appendChild(back);
+  input.focus();
+}
+
+// 주문자 고르기 창 — 명단이 길어졌을 때와 직접 적을 때 쓴다.
+function openCustomerPicker() {
+  const back = document.createElement('div');
+  back.className = 'modal-back';
+  const modal = document.createElement('div');
+  modal.className = 'modal menu-modal';
+  const h = document.createElement('h3');
+  h.textContent = '누가 주문했나요?';
+  const desc = document.createElement('p');
+  desc.className = 'tab-desc';
+  desc.textContent = '카운터 앞 손님이면 고르지 않아도 됩니다. 메신저로 받은 주문일 때 골라 주세요.';
+  modal.append(h, desc);
+
+  const list = sortedCustomers(state.customers);
+  if (list.length) {
+    const grid = document.createElement('div');
+    grid.className = 'cust-grid';
+    for (const c of list) {
+      const tile = document.createElement('button');
+      tile.type = 'button';
+      tile.className = 'cust-tile';
+      tile.setAttribute('aria-pressed', String(orderCustomer.id === c.id));
+      const em = document.createElement('span');
+      em.className = 'em';
+      em.textContent = c.emoji || '🙋';
+      const name = document.createElement('span');
+      name.textContent = c.name;
+      tile.append(em, name);
+      tile.onclick = () => { back.remove(); setOrderCustomer({ id: c.id, name: c.name }); };
+      grid.appendChild(tile);
+    }
+    modal.appendChild(grid);
+  }
+
+  // 명단에 없는 손님 — 그때만 적는다
+  const field = document.createElement('label');
+  field.className = 'field';
+  const span = document.createElement('span');
+  span.textContent = list.length ? '명단에 없으면 여기에 적어 주세요' : '주문자 이름을 적어 주세요';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.maxLength = 30;
+  input.placeholder = '예: 박지훈 선생님 (3층 과학실)';
+  input.value = orderCustomer.id ? '' : orderCustomer.name;
+  const hint = document.createElement('small');
+  hint.className = 'hint';
+  hint.textContent = '자주 주문하는 분이면 관리 → 주문자에 등록해 두면 다음부터 누르기만 하면 돼요.';
+  field.append(span, input, hint);
+  modal.appendChild(field);
+
+  const actions = document.createElement('div');
+  actions.className = 'modal-actions';
+  const clear = document.createElement('button');
+  clear.className = 'btn ghost';
+  clear.textContent = '현장 손님으로';
+  clear.onclick = () => { back.remove(); setOrderCustomer({ id: '', name: '' }); };
+  const ok = document.createElement('button');
+  ok.className = 'btn primary';
+  ok.textContent = '이 이름으로';
+  ok.onclick = () => { back.remove(); setOrderCustomer({ id: '', name: input.value }); };
+  const cancel = document.createElement('button');
+  cancel.className = 'btn ghost';
+  cancel.textContent = '취소';
+  cancel.onclick = () => back.remove();
+  actions.append(cancel, clear, ok);
+  modal.appendChild(actions);
+
+  back.appendChild(modal);
+  document.body.appendChild(back);
+  input.focus();
+}
+
+// 주문 화면 맨 위 — 누가 만들지 고르는 줄.
+function buildBaristaPicker() {
+  const sec = document.createElement('section');
+  sec.className = 'barista-bar';
+
+  const head = document.createElement('div');
+  head.className = 'barista-head';
+  const h2 = document.createElement('h2');
+  h2.textContent = '누가 만들까요?';
+  head.appendChild(h2);
+
+  const list = activeBaristas(state.baristas);
+  const picked = currentBarista();
+  const hint = document.createElement('span');
+  hint.className = 'pick-hint';
+  hint.textContent = picked ? '바꾸려면 다른 사진을 누르세요' : '사진을 눌러 골라 주세요';
+  head.appendChild(hint);
+  sec.appendChild(head);
+
+  if (list.length === 0) {
+    const empty = document.createElement('p');
+    empty.className = 'barista-empty';
+    empty.textContent = state.baristas.length === 0
+      ? '아직 등록된 바리스타가 없어요. 관리 → 바리스타에서 추가할 수 있어요. (지금은 고르지 않고 주문해도 괜찮아요)'
+      : '오늘은 모두 쉬는 날로 되어 있어요. 관리 → 바리스타에서 바꿀 수 있어요.';
+    sec.appendChild(empty);
+    return sec;
+  }
+
+  const strip = document.createElement('div');
+  strip.className = 'barista-strip';
+  strip.setAttribute('role', 'group');
+  strip.setAttribute('aria-label', '만드는 사람 고르기');
+  for (const b of list) {
+    const on = picked?.id === b.id;
+    const tile = document.createElement('button');
+    tile.type = 'button';
+    tile.className = 'bt' + (on ? ' on' : '');
+    tile.setAttribute('aria-pressed', String(on));
+    const name = document.createElement('div');
+    name.className = 'bt-name';
+    name.textContent = b.name;
+    tile.append(buildBaristaFace(b), name);
+    if (on) {
+      const check = document.createElement('span');
+      check.className = 'bt-check';
+      check.setAttribute('aria-hidden', 'true');
+      check.textContent = '✓';
+      tile.appendChild(check);
+    }
+    // 고른 사람을 다시 누르면 선택을 푼다 — 잘못 눌렀을 때 되돌릴 길을 둔다.
+    tile.onclick = () => {
+      setSelectedBarista(on ? null : b.id);
+      navigator.vibrate?.(30);
+    };
+    strip.appendChild(tile);
+  }
+  sec.appendChild(strip);
+  return sec;
 }
 
 // 주문 완료 — 화면을 덮는 큰 번호. 3초 뒤 자동으로 빈 주문 화면으로 돌아간다.
@@ -3372,6 +5183,8 @@ async function submitOrder() {
   try {
     const orderNo = await state.backend.issueOrderNo(businessDate);   // 트랜잭션 — 실패할 수 있다
     const staff = state.settings.todayStaff || {};
+    // 이름은 주문에 함께 적어 둔다 — 나중에 학생 이름을 고치거나 지워도 그날 기록은 그대로 남는다.
+    const picked = currentBarista();
     // 재료는 주문할 때 차감한다. 차감한 양을 주문에 함께 적어 두어야 취소·되살리기에서
     // 정확히 그만큼 되돌릴 수 있다 (주문 뒤에 레시피가 바뀌어도 어긋나지 않는다).
     const menuMap = Object.fromEntries(state.menus.map((m) => [m.id, m]));
@@ -3386,10 +5199,15 @@ async function submitOrder() {
       status: 'waiting',
       cashier: staff.cashier || '',   // 기록만 해 둔다 (이번 버전에서는 집계하지 않는다)
       barista: staff.barista || '',
+      baristaId: picked?.id || '',
+      baristaName: picked?.name || '',
+      customerId: orderCustomer.id,
+      customerName: orderCustomer.name,
       createdAt: Date.now(),
     });
     submitting = false;
     cart = [];   // 주문이 안전하게 저장된 뒤에만 장바구니를 비운다
+    orderCustomer = { id: '', name: '' };   // 다음 손님에게 앞사람 이름이 딸려 가지 않게
     showOrderNumber(orderNo);
     // 재고 반영이 실패해도 주문은 이미 들어갔다 — 번호를 못 받은 것처럼 안내하면 안 된다
     applyStock(delta, 'sale', { orderId, orderNo }).catch(() => {
@@ -3518,6 +5336,11 @@ function buildOrderCard(order, now, lateMinutes) {
   no.textContent = String(order.orderNo);
   card.appendChild(no);
 
+  const who = buildWhoChip(order);
+  if (who) card.appendChild(who);
+  const cust = buildCustomerChip(order);
+  if (cust) card.appendChild(cust);
+
   const items = document.createElement('div');
   items.className = 'order-items';
   for (const item of order.items) items.appendChild(buildOrderItemRow(item));
@@ -3590,6 +5413,10 @@ function buildPickupCard(order) {
   no.className = 'order-no';
   no.textContent = String(order.orderNo);
   card.appendChild(no);
+  const who = buildWhoChip(order);
+  if (who) card.appendChild(who);
+  const cust = buildCustomerChip(order);
+  if (cust) card.appendChild(cust);
   const items = document.createElement('div');
   items.className = 'order-items';
   for (const item of order.items || []) items.appendChild(buildItemLine(item));
@@ -3630,16 +5457,21 @@ function buildItemLine(item) {
 
 function renderBaristaView(el) {
   stopBaristaTimer();
-  const list = waitingOrders(state.orders);
+  const all = waitingOrders(state.orders);
+  const mine = state.baristas.find((b) => b.id === baristaFilterId);
+  const list = mine ? all.filter((o) => o.baristaId === mine.id) : all;
   const lateMinutes = Number(state.settings.lateMinutes) || CONFIG.defaults.lateMinutes;
 
   const wrap = document.createElement('div');
   wrap.className = 'barista-screen';
+  wrap.appendChild(buildMineBar(all));
 
   if (list.length === 0) {
     const hint = document.createElement('p');
     hint.className = 'empty-hint';
-    hint.textContent = '지금은 만들 음료가 없어요. 잠시 쉬어도 좋아요 :)';
+    hint.textContent = mine
+      ? `${mine.name}이(가) 만들 음료가 지금은 없어요. ‘모두 보기’를 누르면 다른 주문도 볼 수 있어요.`
+      : '지금은 만들 음료가 없어요. 잠시 쉬어도 좋아요 :)';
     wrap.appendChild(hint);
   } else {
     const grid = document.createElement('div');
@@ -3650,7 +5482,8 @@ function renderBaristaView(el) {
   }
 
   // 다 만든 음료 — 손님께 건네면 '가져감'. 가져간 번호는 호출 화면에서 빠진다.
-  const ready = readyQueue(state.orders);
+  const readyAll = readyQueue(state.orders);
+  const ready = mine ? readyAll.filter((o) => o.baristaId === mine.id) : readyAll;
   if (ready.length) {
     const head = document.createElement('h2');
     head.className = 'pickup-head';
@@ -3672,6 +5505,49 @@ function renderBaristaView(el) {
       if (card) updateCardTiming(card, order, now, lm);
     }
   }, 10000);
+}
+
+// 제조 화면 위쪽 — 두세 명이 같이 만들 때 자기 주문만 보기.
+// 바리스타가 한 명도 등록되지 않았으면 아무것도 보여 주지 않는다.
+function buildMineBar(allWaiting) {
+  const bar = document.createElement('div');
+  bar.className = 'mine-bar';
+  const list = activeBaristas(state.baristas);
+  if (list.length === 0) return bar;
+
+  const label = document.createElement('span');
+  label.className = 'label';
+  label.textContent = '볼 주문:';
+  bar.appendChild(label);
+
+  const addBtn = (text, on, onclick, face) => {
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'mine-btn';
+    b.setAttribute('aria-pressed', String(on));
+    if (face) b.appendChild(face);
+    const span = document.createElement('span');
+    span.textContent = text;
+    b.appendChild(span);
+    b.onclick = onclick;
+    bar.appendChild(b);
+  };
+
+  const setFilter = (id) => {
+    baristaFilterId = id;
+    try {
+      if (id) localStorage.setItem(CONFIG.baristaFilterKey, id);
+      else localStorage.removeItem(CONFIG.baristaFilterKey);
+    } catch { }
+    render();
+  };
+
+  addBtn(`모두 보기 (${allWaiting.length})`, !baristaFilterId, () => setFilter(null));
+  for (const b of list) {
+    const n = allWaiting.filter((o) => o.baristaId === b.id).length;
+    addBtn(`${b.name} (${n})`, baristaFilterId === b.id, () => setFilter(b.id), buildBaristaFace(b));
+  }
+  return bar;
 }
 
 // ---- 호출 화면 (PRD 3.3) ----
@@ -3814,6 +5690,15 @@ function renderDisplayView(el) {
     line.setAttribute('aria-live', 'assertive');
     line.textContent = callText(state.settings.ttsText, top.orderNo);
     center.appendChild(line);
+
+    // 원격 주문이면 누구 것인지 함께 띄운다 — 대신 받으러 온 사람도 알아볼 수 있게
+    const custName = (top.customerName || '').trim();
+    if (custName) {
+      const who = document.createElement('p');
+      who.className = 'display-cust';
+      who.textContent = `🙋 ${custName}`;
+      center.appendChild(who);
+    }
   }
   wrap.appendChild(center);
 
@@ -3860,6 +5745,20 @@ function buildBoardCol(kind, heading, list, more, latest) {
   }
   col.appendChild(ul);
   return col;
+}
+
+// 매니저 보드 되그리기 — 수령 완료 카드는 시간이 지나기만 해도 사라져야 한다.
+// render()가 다시 불릴 때마다 새로 잡지 않도록, 켜져 있으면 그대로 둔다.
+let managerTimer = null;
+function startManagerTimer() {
+  if (managerTimer) return;
+  managerTimer = setInterval(() => {
+    if (state.role !== 'manager') { stopManagerTimer(); return; }
+    render();
+  }, 20 * 1000);
+}
+function stopManagerTimer() {
+  if (managerTimer) { clearInterval(managerTimer); managerTimer = null; }
 }
 
 // 새 호출 감지 — 주문 구독이 바뀔 때마다 불린다.
@@ -3917,7 +5816,8 @@ const managerScroll = {};       // 열마다 스크롤 위치 — 다시 그려�
 
 function renderManagerView(el) {
   const mode = managerMode();
-  const board = managerBoard(state.orders, businessDateOf());
+  const visibleMinutes = Number(state.settings.pickedUpVisibleMinutes ?? CONFIG.pickedUpVisibleMinutes);
+  const board = managerBoard(state.orders, businessDateOf(), Date.now(), visibleMinutes);
 
   const wrap = document.createElement('div');
   wrap.className = 'manager';
@@ -3965,9 +5865,18 @@ function renderManagerView(el) {
 
   const boardEl = document.createElement('div');
   boardEl.className = 'mboard' + (mode === 'mobile' ? ' single' : '');
-  for (const c of columns) boardEl.appendChild(buildManagerColumn(c, board[c.key]));
+  for (const c of columns) {
+    const past = `${visibleMinutes}분이 지난 건은 관리 → 기록에서 볼 수 있어요`;
+    const note = c.key === 'pickedUp' ? `${past} · 오늘 ${board.pickedUpTodayCount}건`
+      : c.key === 'cancelled' ? `${past} · 오늘 ${board.cancelledTodayCount}건`
+      : null;
+    boardEl.appendChild(buildManagerColumn(c, board[c.key], note));
+  }
   wrap.appendChild(boardEl);
   el.appendChild(wrap);
+
+  // 시간이 흐르기만 해도 수령 완료 카드가 사라져야 한다 — 데이터가 안 바뀌어도 다시 그린다.
+  startManagerTimer();
 
   // 붙인 뒤에야 스크롤 위치를 되살릴 수 있다
   for (const body of el.querySelectorAll('.mcol-body')) {
@@ -3975,7 +5884,7 @@ function renderManagerView(el) {
   }
 }
 
-function buildManagerColumn(col, list) {
+function buildManagerColumn(col, list, note) {
   const sec = document.createElement('section');
   sec.className = `mcol ${col.key}`;
   const head = document.createElement('div');
@@ -3988,6 +5897,12 @@ function buildManagerColumn(col, list) {
   count.setAttribute('aria-label', `${list.length}건`);
   head.append(title, count);
   sec.appendChild(head);
+  if (note) {
+    const noteEl = document.createElement('p');
+    noteEl.className = 'mcol-note';
+    noteEl.textContent = note;
+    sec.appendChild(noteEl);
+  }
 
   const body = document.createElement('div');
   body.className = 'mcol-body';
@@ -3996,7 +5911,7 @@ function buildManagerColumn(col, list) {
   if (list.length === 0) {
     const empty = document.createElement('p');
     empty.className = 'mcol-empty';
-    empty.textContent = '없음';
+    empty.textContent = col.key === 'pickedUp' ? '최근에 가져간 주문이 없어요' : '없음';
     body.appendChild(empty);
   }
   for (const order of list) body.appendChild(buildManagerCard(order, col.key));
@@ -4011,6 +5926,10 @@ function buildManagerCard(order, colKey) {
   no.className = 'mcard-no';
   no.textContent = String(order.orderNo);
   card.appendChild(no);
+  const who = buildWhoChip(order);
+  if (who) card.appendChild(who);
+  const cust = buildCustomerChip(order);
+  if (cust) card.appendChild(cust);
   for (const item of order.items || []) card.appendChild(buildItemLine(item));
 
   const actions = document.createElement('div');
@@ -4075,6 +5994,8 @@ const VIEWS = {
 };
 
 function render() {
+  // 매니저 화면을 떠나면 되그리기 타이머도 멈춘다 (보드를 그릴 때 다시 켠다).
+  if (state.role !== 'manager') stopManagerTimer();
   // 제조 화면이 떠 있었다면 카드를 갈아엎기 전에 경과 시간 인터벌부터 지운다.
   // 그래야 다른 화면으로 옮기거나 데이터가 바뀌어 다시 그릴 때마다 인터벌이 쌓이지 않는다.
   stopBaristaTimer();
@@ -4134,7 +6055,7 @@ test('테스트 러너가 불일치를 잡아낸다', () => {
 });
 
 test('CONFIG에 필수 값이 있다', () => {
-  eq(CONFIG.dataRoot, 'dallbodrae_pos');
+  eq(CONFIG.dataRoot, 'dallbodrae_pos', '주곡 카페 앱 경로와 섞이면 안 된다');
   eq(typeof CONFIG.spaceId, 'string');
   eq(CONFIG.appName, 'dallbodrae-pos');
 });
@@ -4484,11 +6405,43 @@ test('매니저 보드는 네 열로 나누고, 수령·취소는 오늘 것만 
     { id: 'c1', status: 'cancelled', businessDate: today, cancelledAt: 800 },
     { id: 'c0', status: 'cancelled', businessDate: yesterday, cancelledAt: 90 },
   ];
-  const b = managerBoard(orders, today);
+  const b = managerBoard(orders, today, 1000, 10);
   eq(b.waiting.map((o) => o.id), ['w1', 'w2'], '끝나지 않은 주문은 날짜와 상관없이 오래된 것부터');
   eq(b.ready.map((o) => o.id), ['r1', 'r2'], '먼저 부른 것부터 — 오래 기다린 손님이 위');
   eq(b.pickedUp.map((o) => o.id), ['p2', 'p1']);
   eq(b.cancelled.map((o) => o.id), ['c1']);
+});
+
+test('수령 완료는 정해진 시간이 지나면 보드에서 빠진다 (기록에는 남는다)', () => {
+  const today = '2026-10-22';
+  const min = 60 * 1000;
+  const now = 100 * min;
+  const orders = [
+    { id: 'fresh', status: 'pickedUp', businessDate: today, pickedUpAt: now - 2 * min },
+    { id: 'edge',  status: 'pickedUp', businessDate: today, pickedUpAt: now - 10 * min },
+    { id: 'old',   status: 'pickedUp', businessDate: today, pickedUpAt: now - 11 * min },
+    { id: 'noTime', status: 'pickedUp', businessDate: today },
+  ];
+  const b = managerBoard(orders, today, now, 10);
+  eq(b.pickedUp.map((o) => o.id), ['fresh'], '딱 10분이 된 건과 그보다 오래된 건은 빠진다');
+  eq(b.pickedUpTodayCount, 4, '오늘 가져간 건수는 그대로 센다');
+  eq(managerBoard(orders, today, now, 0).pickedUp, [], '0분이면 바로 사라진다');
+});
+
+test('취소도 정해진 시간이 지나면 보드에서 빠진다 (기록에는 남는다)', () => {
+  const today = '2026-10-22';
+  const min = 60 * 1000;
+  const now = 100 * min;
+  const orders = [
+    { id: 'fresh', status: 'cancelled', businessDate: today, cancelledAt: now - 2 * min },
+    { id: 'edge',  status: 'cancelled', businessDate: today, cancelledAt: now - 10 * min },
+    { id: 'old',   status: 'cancelled', businessDate: today, cancelledAt: now - 11 * min },
+    { id: 'noTime', status: 'cancelled', businessDate: today },
+  ];
+  const b = managerBoard(orders, today, now, 10);
+  eq(b.cancelled.map((o) => o.id), ['fresh'], '딱 10분이 된 건과 그보다 오래된 건은 빠진다');
+  eq(b.cancelledTodayCount, 4, '오늘 취소한 건수는 그대로 센다');
+  eq(managerBoard(orders, today, now, 0).cancelled, [], '0분이면 바로 사라진다');
 });
 
 // ---- 재료 차감 (Task 12) ----
@@ -4670,6 +6623,143 @@ test('재료별로 입고 · 사용 · 조정을 합산한다 (취소·되살리
   ], '재료 탭과 같은 가나다순');
 });
 
+// ---- 바리스타 ----
+test('바리스타는 정한 순서대로, 순서가 없으면 이름순으로 선다', () => {
+  const list = [
+    { id: 'c', name: '박하늘' },
+    { id: 'a', name: '이서연', order: 2 },
+    { id: 'b', name: '김민준', order: 1 },
+  ];
+  eq(sortedBaristas(list).map((b) => b.id), ['b', 'a', 'c']);
+});
+
+test('오늘 쉬는 학생은 주문 화면에서 빠진다', () => {
+  const list = [
+    { id: 'a', name: '김민준', order: 1 },
+    { id: 'b', name: '이서연', order: 2, offToday: true },
+  ];
+  eq(activeBaristas(list).map((b) => b.id), ['a'], '지운 게 아니라 잠깐 감춘 것');
+  eq(sortedBaristas(list).length, 2, '관리 화면에는 그대로 보인다');
+});
+
+test('바리스타별 잔 수를 세고 취소는 뺀다', () => {
+  const o = (id, name, st, qty, at) => ({
+    businessDate: '2026-10-22', status: st, createdAt: at,
+    baristaId: id, baristaName: name, items: [{ menuId: 'm', name: '라떼', qty }],
+  });
+  const orders = [
+    o('a', '김민준', 'pickedUp', 2, 100),
+    o('b', '이서연', 'ready', 3, 200),
+    o('a', '김민준', 'waiting', 1, 300),
+    o('b', '이서연', 'cancelled', 9, 400),
+    { businessDate: '2026-10-22', status: 'ready', createdAt: 500, items: [{ menuId: 'm', name: '라떼', qty: 1 }] },
+  ];
+  const sum = baristaSummary(orders, '2026-10-22', '2026-10-22');
+  eq(sum.map((x) => [x.name, x.qty, x.orderCount]),
+     [['김민준', 3, 2], ['이서연', 3, 1], ['(고르지 않음)', 1, 1]],
+     '잔 수가 같으면 가나다순');
+  eq(baristaSummary(orders, '2026-10-21', '2026-10-21'), [], '기간 밖은 비어 있다');
+});
+
+test('이름이 바뀌면 기록에 최근 이름을 쓴다', () => {
+  const orders = [
+    { businessDate: '2026-10-22', status: 'ready', createdAt: 100, baristaId: 'a', baristaName: '옛 이름', items: [{ qty: 1 }] },
+    { businessDate: '2026-10-22', status: 'ready', createdAt: 200, baristaId: 'a', baristaName: '새 이름', items: [{ qty: 1 }] },
+  ];
+  eq(baristaSummary(orders, '2026-10-22', '2026-10-22')[0].name, '새 이름');
+});
+
+// ---- 손님 평가 ----
+test('손님 평가를 모은다 — 평균·정확도·속도·칭찬', () => {
+  const fb = [
+    { drink: 4, accurate: true,  speed: 'fast', praises: ['맛있어요 😋', '친절해요 😊'], baristaId: 'a', baristaName: '김민준', comment: '또 먹고 싶어요', createdAt: 200 },
+    { drink: 3, accurate: false, speed: 'slow', praises: ['맛있어요 😋'], baristaId: 'b', baristaName: '이서연', comment: '', createdAt: 100 },
+    { drink: 2, speed: 'ok', baristaId: 'a', baristaName: '김민준', comment: '시원해요', createdAt: 300 },
+  ];
+  const s = feedbackSummary(fb);
+  eq(s.total, 3);
+  eq(s.drinkAvg, 3);
+  eq(s.drinkCounts.map((d) => d.count), [0, 1, 1, 1]);
+  eq([s.accurateYes, s.accurateTotal], [1, 2], '답하지 않은 건은 정확도 모수에서 뺀다');
+  eq(s.speed, { fast: 1, ok: 1, slow: 1 });
+  eq(s.praises, [{ text: '맛있어요 😋', count: 2 }, { text: '친절해요 😊', count: 1 }]);
+  eq(s.byBarista.map((b) => [b.name, b.praises, b.count]), [['김민준', 2, 2], ['이서연', 1, 1]]);
+  eq(s.comments.map((c) => c.comment), ['시원해요', '또 먹고 싶어요'], '최근 글이 위');
+});
+
+test('평가가 하나도 없어도 안전하다', () => {
+  const s = feedbackSummary([]);
+  eq([s.total, s.drinkAvg, s.accurateTotal], [0, null, 0]);
+  eq([s.praises, s.byBarista, s.comments], [[], [], []]);
+});
+
+// ---- 주문자 ----
+test('주문자 명단은 정한 순서대로, 없으면 이름순', () => {
+  const list = [{ id: 'c', name: '박교감' }, { id: 'a', name: '이선생', order: 2 }, { id: 'b', name: '김선생', order: 1 }];
+  eq(sortedCustomers(list).map((c) => c.id), ['b', 'a', 'c']);
+});
+
+test('주문자별로 묶고, 안 적은 건 현장 손님으로 모은다', () => {
+  const o = (name, qty, at) => ({
+    businessDate: '2026-10-29', status: 'ready', createdAt: at,
+    customerName: name, items: [{ menuId: 'm', name: '라떼', qty }],
+  });
+  const orders = [
+    o('김선생 (교무실)', 2, 100),
+    o('', 1, 200),
+    o('김선생 (교무실)', 1, 300),
+    o('이선생 (2-3반)', 3, 400),
+    { businessDate: '2026-10-29', status: 'cancelled', createdAt: 500, customerName: '김선생 (교무실)', items: [{ qty: 9 }] },
+  ];
+  eq(customerSummary(orders, '2026-10-29', '2026-10-29').map((c) => [c.name, c.orderCount, c.qty]),
+     [['김선생 (교무실)', 2, 3], ['이선생 (2-3반)', 1, 3], ['현장 손님', 1, 1]],
+     '취소는 빼고 많이 시킨 순');
+  eq(customerSummary(orders, '2026-10-28', '2026-10-28'), []);
+});
+
+// ---- 자리배치도 ----
+test('자리배치도에서 고른 이름은 자리와 함께 남는다', () => {
+  eq(seatLabel({ name: '고명희' }, '4층 본관 교무실'), '고명희 (4층 본관 교무실)');
+  eq(seatLabel({ name: '미술실', place: true }, '특별실'), '미술실', '사람이 아닌 곳은 이름 그대로');
+});
+
+test('자리는 한 줄 칸 수를 넘지 않는다', () => {
+  // 순서대로 놓이므로 겹칠 일은 없다. 가로로 한 줄보다 넓은 자리만 막으면 된다.
+  const bad = [];
+  for (const room of DEFAULT_SEAT_MAP) {
+    if (!room.cols) continue;
+    for (const c of room.cells || []) {
+      const span = c.span || 1;
+      if (span > room.cols) bad.push(`${room.room} ${c.name}: 가로 ${span}칸이 한 줄(${room.cols})보다 넓다`);
+      if ((c.rspan || 1) < 1) bad.push(`${room.room} ${c.name}: 세로 칸 수가 0 이하`);
+    }
+  }
+  eq(bad, []);
+});
+
+test('빈칸은 사람으로 세지 않는다', () => {
+  const room = { cells: [{ name: '가' }, { blank: true }, { name: '나' }] };
+  eq(seatPeople(room).map((c) => c.name), ['가', '나']);
+  eq(seatPeople({ cells: [] }), []);
+  eq(seatPeople({}), []);
+});
+
+test('자리배치도가 성한 모양이다', () => {
+  const seen = new Set();
+  const bad = [];
+  for (const room of DEFAULT_SEAT_MAP) {
+    if (!room.floor) bad.push(`${room.room}: 층이 없다`);
+    if (!room.room) bad.push('방 이름이 없는 칸이 있다');
+    for (const p of seatPeople(room)) {
+      if (!p.name) bad.push(`${room.room}: 이름이 빈 자리가 있다`);
+      const key = `${p.name}/${room.room}`;
+      if (seen.has(key)) bad.push(`중복: ${key}`);
+      seen.add(key);
+    }
+  }
+  eq(bad, []);
+});
+
 // ===== 7. 시작 =====
 if (new URLSearchParams(location.search).has('selftest')) {
   runSelfTest();
@@ -4702,11 +6792,15 @@ if (new URLSearchParams(location.search).has('selftest')) {
     }
   }
 
-  for (const name of ['menus', 'ingredients']) {
+  for (const name of ['menus', 'baristas', 'customers', 'ingredients', 'seats']) {
     state.backend.subscribe(name, (docs) => { state[name] = docs; render(); });
   }
   // 주문은 최근 며칠 것만 실시간으로 받는다 — 끝나지 않은 주문과 오늘 기록을 보기에 충분하다.
   // 더 오래된 주문은 관리 → 기록에서 고른 기간만 불러온다.
+  // 이 기기가 지난번에 고른 바리스타를 되살린다 (없거나 쉬는 날이면 저절로 비워진다)
+  try { selectedBaristaId = localStorage.getItem(CONFIG.baristaKey) || null; } catch { }
+  try { baristaFilterId = localStorage.getItem(CONFIG.baristaFilterKey) || null; } catch { }
+
   const liveSince = businessDateOf(new Date(Date.now() - CONFIG.liveOrderDays * 24 * 60 * 60 * 1000));
   state.backend.subscribeSince('orders', 'businessDate', liveSince, (docs) => {
     state.orders = docs;
@@ -4739,7 +6833,13 @@ if (new URLSearchParams(location.search).has('selftest')) {
   document.getElementById('btn-change-role').onclick = changeRole;
   watchAdminIdle();
 
-  setRole(localStorage.getItem(CONFIG.roleKey) || null);
+  // 기억하지 않는 카페에서는, 예전 버전이 저장해 둔 역할이 남아 있어도 주문 화면에서 시작한다.
+  let saved = null;
+  try {
+    saved = CONFIG.rememberRole ? localStorage.getItem(CONFIG.roleKey) : null;
+    if (!CONFIG.rememberRole) localStorage.removeItem(CONFIG.roleKey);
+  } catch { }
+  setRole(saved || (CONFIG.rememberRole ? null : 'order'));
 }
 </script>
 </body>

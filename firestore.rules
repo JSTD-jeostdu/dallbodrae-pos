@@ -1,6 +1,6 @@
 rules_version = '2';
 
-// ---- 주곡중학교 특수학급 카페 POS들 ----
+// ---- 특수학급 카페 POS들 ----
 // 한 Firebase 프로젝트(dallbodrae-pos)를 두 앱이 함께 쓴다.
 // 경로가 다르므로 서로의 데이터를 읽거나 쓸 수 없다.
 //   dallbodrae_pos/{spaceId}/...  — 달보드레 카페 POS
@@ -14,16 +14,17 @@ rules_version = '2';
 // 대신 정해진 컬렉션만 열고 나머지는 모두 막는다.
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 두 앱이 같은 코드를 쓰므로 여는 컬렉션 목록도 같다.
     match /dallbodrae_pos/{spaceId}/{collection}/{docId} {
       allow read, write: if collection in
-        ['menus', 'ingredients', 'orders', 'stockLogs', 'counterResets', 'counters', 'settings'];
+        ['menus', 'baristas', 'customers', 'seats', 'ingredients', 'orders', 'stockLogs',
+         'counterResets', 'counters', 'settings', 'feedbacks'];
     }
 
-    // baristas는 주곡 카페에만 있는 컬렉션이다 (달보드레 블록은 그대로 둔다).
     match /jugok_pos/{spaceId}/{collection}/{docId} {
       allow read, write: if collection in
-        ['menus', 'baristas', 'customers', 'ingredients', 'orders', 'stockLogs', 'counterResets',
-         'counters', 'settings', 'feedbacks'];
+        ['menus', 'baristas', 'customers', 'seats', 'ingredients', 'orders', 'stockLogs',
+         'counterResets', 'counters', 'settings', 'feedbacks'];
     }
   }
 }

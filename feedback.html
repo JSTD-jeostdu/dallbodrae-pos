@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>달보드레 — 평가하기</title>
+<meta name="robots" content="noindex">
+<style>
+  /* 손님(중학생)이 휴대폰으로 30초 안에 끝내는 화면.
+     앱과 같은 색감을 쓰되, 글을 못 읽어도 되도록 얼굴 그림을 크게 둔다. */
+  :root {
+    --bg: #fdf7f2; --panel: #ffffff; --ink: #2a2320; --muted: #7a6b60; --line: #e8dcd2;
+    --brand: #b5651d; --brand-dark: #8c4a12; --ok: #2f7d4f; --warn: #d98a00; --danger: #c0392b;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink); font-family: 'Noto Sans KR', system-ui, sans-serif;
+    font-size: 17px; line-height: 1.6; padding: 0 16px 48px;
+  }
+  button { font: inherit; cursor: pointer; border: none; touch-action: manipulation; }
+  .wrap { max-width: 560px; margin: 0 auto; }
+
+  header { text-align: center; padding: 28px 0 10px; }
+  header h1 { margin: 0 0 4px; font-size: 26px; color: var(--brand); }
+  header p { margin: 0; color: var(--muted); font-size: 15px; }
+
+  .step { margin-top: 26px; }
+  .step h2 { font-size: 20px; margin: 0 0 4px; }
+  .step .sub { margin: 0 0 12px; color: var(--muted); font-size: 14px; }
+
+  /* 주문번호 고르기 */
+  .nos { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 12px; }
+  .no-tile {
+    background: var(--panel); border: 3px solid var(--line); border-radius: 16px; padding: 14px;
+    display: flex; align-items: center; gap: 14px; color: var(--ink); text-align: left;
+  }
+  .no-tile .no {
+    flex: 0 0 auto; min-width: 56px; text-align: center;
+    display: flex; flex-direction: column; align-items: center; gap: 2px;
+  }
+  .no-tile .no b { font-size: 34px; font-weight: 900; color: var(--brand); line-height: 1; }
+  .no-tile .no i { font-style: normal; font-size: 12px; color: var(--muted); }
+  .no-tile .meta { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+  .no-tile .meta span { font-size: 14px; overflow-wrap: anywhere; line-height: 1.4; }
+  .no-tile .meta .who { font-weight: 800; }
+  .no-tile .meta .made, .no-tile .meta .what { color: var(--muted); font-size: 13px; }
+  .no-tile:active { transform: scale(.97); }
+
+  /* 얼굴·선택 버튼 공통 */
+  .choices { display: flex; gap: 10px; flex-wrap: wrap; }
+  .choice {
+    flex: 1 1 0; min-width: 84px; min-height: 92px; padding: 10px 6px; border-radius: 16px;
+    background: var(--panel); border: 3px solid var(--line); color: var(--ink);
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px;
+  }
+  .choice .face { font-size: 34px; line-height: 1; }
+  .choice span { font-size: 14px; font-weight: 700; }
+  /* 고른 것: 색만으로 알리지 않는다 — 두꺼운 테두리 + 배경 + ✓ */
+  .choice[aria-pressed="true"] { border-color: var(--ok); background: #eef7f1; }
+  .choice[aria-pressed="true"]::after { content: '✓'; color: var(--ok); font-weight: 900; font-size: 15px; }
+
+  .stickers { display: flex; flex-wrap: wrap; gap: 10px; }
+  .sticker {
+    padding: 12px 16px; min-height: 52px; border-radius: 999px; background: var(--panel);
+    border: 3px solid var(--line); color: var(--ink); font-size: 16px; font-weight: 700;
+  }
+  .sticker[aria-pressed="true"] { border-color: var(--ok); background: #eef7f1; }
+
+  textarea {
+    width: 100%; min-height: 96px; padding: 12px; border-radius: 14px; border: 2px solid var(--line);
+    font: inherit; background: var(--panel); color: var(--ink); resize: vertical;
+  }
+  .privacy { color: var(--muted); font-size: 13px; margin: 8px 0 0; }
+
+  .send {
+    width: 100%; margin-top: 28px; min-height: 64px; border-radius: var(--radius);
+    background: var(--brand); color: #fff; font-size: 20px; font-weight: 900;
+  }
+  .send:disabled { opacity: .4; cursor: not-allowed; }
+
+  .msg {
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 20px; text-align: center; color: var(--muted); margin-top: 24px;
+  }
+  .msg.warn { background: #fff8ec; border-color: var(--warn); color: var(--ink); }
+  .btn-ghost {
+    margin-top: 14px; min-height: 48px; padding: 10px 18px; border-radius: 14px;
+    background: var(--panel); border: 2px solid var(--line); color: var(--ink); font-weight: 700;
+  }
+  .done { text-align: center; padding: 40px 0; }
+  .done .big { font-size: 68px; line-height: 1; }
+  .done h2 { margin: 14px 0 6px; font-size: 26px; color: var(--ok); }
+  .done p { margin: 0; color: var(--muted); }
+  footer { text-align: center; color: var(--muted); font-size: 13px; margin-top: 36px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="cafe-name">달보드레</h1>
+    <p>음료 어떠셨나요? 30초면 끝나요 🙂</p>
+  </header>
+  <main id="app"><p class="msg">불러오는 중이에요…</p></main>
+  <footer>남겨 주신 평가는 선생님이 봅니다 · 이름은 남지 않아요</footer>
+</div>
+
+<script type="module">
+// ---- 설정 (앱 index.html의 CONFIG와 같은 프로젝트·같은 경로를 쓴다) ----
+const CONFIG = {
+  firebase: {
+    apiKey: 'AIzaSyBL6RHg6fhqZD6a4P6i63N4z_rAoxnHFLI',
+    authDomain: 'dallbodrae-pos.firebaseapp.com',
+    projectId: 'dallbodrae-pos',
+    storageBucket: 'dallbodrae-pos.firebasestorage.app',
+    messagingSenderId: '711069292626',
+    appId: '1:711069292626:web:bd0d734119558c759a278b',
+  },
+  firebaseVersion: '12.19.0',
+  appName: 'dallbodrae-feedback', // 앱과 캐시가 섞이지 않게 따로 둔다
+  dataRoot: 'dallbodrae_pos',
+  spaceId: 'cafe-2026',
+  cafeName: '달보드레',
+  recentMinutes: 30,             // 이 시간 안에 나온 주문만 고를 수 있다
+};
+
+const DRINK_FACES = [
+  { v: 1, face: '😞', label: '별로예요' },
+  { v: 2, face: '😐', label: '괜찮아요' },
+  { v: 3, face: '🙂', label: '맛있어요' },
+  { v: 4, face: '😄', label: '최고예요' },
+];
+const SPEED_CHOICES = [
+  { v: 'fast', face: '⚡', label: '빨랐어요' },
+  { v: 'ok',   face: '🙂', label: '괜찮아요' },
+  { v: 'slow', face: '🐢', label: '오래 걸렸어요' },
+];
+// 학생에게 전해질 말이라 칭찬만 둔다 (낮은 점수는 아예 받지 않는다)
+const PRAISES = ['맛있어요 😋', '친절해요 😊', '빨라요 ⚡', '고마워요 💛', '예뻐요 ✨'];
+
+const app = document.getElementById('app');
+document.getElementById('cafe-name').textContent = CONFIG.cafeName;
+
+const businessDateOf = (d = new Date()) => {
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+const el = (tag, cls, text) => {
+  const node = document.createElement(tag);
+  if (cls) node.className = cls;
+  if (text != null) node.textContent = text;
+  return node;
+};
+const itemsText = (o) => (o.items || []).map((i) => `${i.name}${i.qty > 1 ? `×${i.qty}` : ''}`).join(', ');
+
+let fs, db, orders = [];
+const answer = { orderId: null, drink: null, accurate: null, speed: null, praises: [], comment: '' };
+
+async function boot() {
+  try {
+    const v = CONFIG.firebaseVersion;
+    const { initializeApp } = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-app.js`);
+    fs = await import(`https://www.gstatic.com/firebasejs/${v}/firebase-firestore.js`);
+    db = fs.getFirestore(initializeApp(CONFIG.firebase, CONFIG.appName));
+    await loadOrders();
+  } catch (err) {
+    console.error(err);
+    showError('인터넷 연결을 확인하고 다시 열어 주세요.');
+  }
+}
+
+const col = (name) => fs.collection(db, CONFIG.dataRoot, CONFIG.spaceId, name);
+
+async function loadOrders() {
+  const today = businessDateOf();
+  const [orderSnap, feedbackSnap] = await Promise.all([
+    fs.getDocs(fs.query(col('orders'), fs.where('businessDate', '==', today))),
+    fs.getDocs(fs.query(col('feedbacks'), fs.where('businessDate', '==', today))),
+  ]);
+  // 이미 평가한 주문은 다시 보여 주지 않는다 (한 주문에 한 번)
+  const rated = new Set(feedbackSnap.docs.map((d) => d.data().orderId));
+  const since = Date.now() - CONFIG.recentMinutes * 60 * 1000;
+  orders = orderSnap.docs
+    .map((d) => ({ id: d.id, ...d.data() }))
+    .filter((o) => (o.status === 'pickedUp' || o.status === 'ready') && !rated.has(o.id))
+    .filter((o) => (o.pickedUpAt || o.readyAt || 0) > since)
+    .sort((a, b) => (b.pickedUpAt || b.readyAt || 0) - (a.pickedUpAt || a.readyAt || 0));
+  renderPickOrder();
+}
+
+function showError(text) {
+  app.innerHTML = '';
+  app.appendChild(el('p', 'msg warn', text));
+  const again = el('button', 'btn-ghost', '다시 해보기');
+  again.onclick = () => location.reload();
+  app.appendChild(again);
+}
+
+// ---- 1단계: 주문번호 고르기 ----
+function renderPickOrder() {
+  app.innerHTML = '';
+  if (orders.length === 0) {
+    app.appendChild(el('p', 'msg warn',
+      '방금 나온 주문이 없어요. 음료를 받은 뒤에 다시 눌러 주세요.'));
+    const again = el('button', 'btn-ghost', '다시 불러오기');
+    again.onclick = () => location.reload();
+    app.appendChild(again);
+    return;
+  }
+  const step = el('div', 'step');
+  step.appendChild(el('h2', null, '몇 번 주문이셨나요?'));
+  step.appendChild(el('p', 'sub', '번호나 이름으로 내 주문을 찾아 눌러 주세요'));
+  const grid = el('div', 'nos');
+  for (const o of orders) {
+    const who = (o.customerName || '').trim() || '현장 손님';
+    const what = itemsText(o) || '음료';
+    const made = (o.baristaName || '').trim();
+
+    const tile = el('button', 'no-tile');
+    tile.type = 'button';
+    const no = el('span', 'no');
+    no.appendChild(el('b', null, String(o.orderNo)));
+    no.appendChild(el('i', null, '번'));
+    const meta = el('span', 'meta');
+    meta.appendChild(el('span', 'who', `🙋 ${who}`));
+    if (made) meta.appendChild(el('span', 'made', `👤 ${made} 바리스타`));
+    meta.appendChild(el('span', 'what', `☕ ${what}`));
+    tile.append(no, meta);
+    tile.setAttribute('aria-label',
+      [`${o.orderNo}번`, `주문자 ${who}`, made && `만든 사람 ${made}`, what, '평가하기']
+        .filter(Boolean).join(', '));
+    tile.onclick = () => { answer.orderId = o.id; renderQuestions(o); };
+    grid.appendChild(tile);
+  }
+  step.appendChild(grid);
+  app.appendChild(step);
+}
+
+// ---- 2단계: 질문 ----
+function renderQuestions(order) {
+  app.innerHTML = '';
+
+  const head = el('div', 'step');
+  head.appendChild(el('h2', null, `${order.orderNo}번 · ${itemsText(order)}`));
+  const change = el('button', 'btn-ghost', '← 다른 번호 고르기');
+  change.onclick = () => { answer.orderId = null; renderPickOrder(); };
+  head.appendChild(change);
+  app.appendChild(head);
+
+  app.appendChild(choiceStep('음료는 어땠나요?', null, DRINK_FACES, 'drink'));
+  app.appendChild(choiceStep('주문한 대로 나왔나요?', null, [
+    { v: true, face: '👍', label: '네, 맞아요' },
+    { v: false, face: '🤔', label: '아니에요' },
+  ], 'accurate'));
+  app.appendChild(choiceStep('기다린 시간은 어땠나요?', null, SPEED_CHOICES, 'speed'));
+
+  // 칭찬 스티커 (여러 개)
+  const praiseStep = el('div', 'step');
+  praiseStep.appendChild(el('h2', null, '만든 사람에게 칭찬 한마디'));
+  praiseStep.appendChild(el('p', 'sub', '누르고 싶은 만큼 눌러 주세요 (안 해도 괜찮아요)'));
+  const stickers = el('div', 'stickers');
+  for (const text of PRAISES) {
+    const b = el('button', 'sticker', text);
+    b.type = 'button';
+    b.setAttribute('aria-pressed', 'false');
+    b.onclick = () => {
+      const on = b.getAttribute('aria-pressed') === 'true';
+      b.setAttribute('aria-pressed', String(!on));
+      answer.praises = on ? answer.praises.filter((x) => x !== text) : [...answer.praises, text];
+      navigator.vibrate?.(20);
+    };
+    stickers.appendChild(b);
+  }
+  praiseStep.appendChild(stickers);
+  app.appendChild(praiseStep);
+
+  // 자유 의견 — 선생님만 본다고 분명히 적는다
+  const commentStep = el('div', 'step');
+  commentStep.appendChild(el('h2', null, '하고 싶은 말이 있나요?'));
+  commentStep.appendChild(el('p', 'sub', '안 써도 괜찮아요'));
+  const ta = el('textarea');
+  ta.maxLength = 300;
+  ta.placeholder = '예: 다음에도 또 먹고 싶어요!';
+  ta.oninput = () => { answer.comment = ta.value; };
+  commentStep.appendChild(ta);
+  commentStep.appendChild(el('p', 'privacy',
+    '여기에 쓴 글은 선생님만 봅니다. 이름은 남지 않아요. 친구를 속상하게 하는 말은 쓰지 말아 주세요.'));
+  app.appendChild(commentStep);
+
+  const send = el('button', 'send', '평가 보내기');
+  send.type = 'button';
+  send.disabled = true;
+  send.onclick = () => submit(order, send);
+  app.appendChild(send);
+
+  // 음료 평가 하나만 고르면 보낼 수 있게 한다 (나머지는 선택)
+  app.addEventListener('click', () => { send.disabled = answer.drink == null; });
+}
+
+function choiceStep(title, sub, options, key) {
+  const step = el('div', 'step');
+  step.appendChild(el('h2', null, title));
+  if (sub) step.appendChild(el('p', 'sub', sub));
+  const row = el('div', 'choices');
+  for (const opt of options) {
+    const b = el('button', 'choice');
+    b.type = 'button';
+    b.setAttribute('aria-pressed', 'false');
+    b.appendChild(el('span', 'face', opt.face));
+    b.appendChild(el('span', null, opt.label));
+    b.setAttribute('aria-label', opt.label);
+    b.onclick = () => {
+      for (const other of row.querySelectorAll('.choice')) other.setAttribute('aria-pressed', 'false');
+      b.setAttribute('aria-pressed', 'true');
+      answer[key] = opt.v;
+      navigator.vibrate?.(20);
+    };
+    row.appendChild(b);
+  }
+  step.appendChild(row);
+  return step;
+}
+
+// ---- 3단계: 보내기 ----
+async function submit(order, button) {
+  button.disabled = true;
+  button.textContent = '보내는 중…';
+  try {
+    await fs.addDoc(col('feedbacks'), {
+      orderId: order.id,
+      orderNo: order.orderNo,
+      businessDate: order.businessDate || businessDateOf(),
+      // 칭찬을 학생별로 모아 보려면 주문에 적힌 바리스타를 함께 남겨야 한다
+      baristaId: order.baristaId || '',
+      baristaName: order.baristaName || '',
+      drink: answer.drink,
+      accurate: answer.accurate,
+      speed: answer.speed,
+      praises: answer.praises,
+      comment: (answer.comment || '').trim().slice(0, 300),
+      createdAt: Date.now(),
+    });
+    renderDone();
+  } catch (err) {
+    console.error(err);
+    button.disabled = false;
+    button.textContent = '평가 보내기';
+    app.appendChild(el('p', 'msg warn', '보내지 못했어요. 인터넷을 확인하고 다시 눌러 주세요.'));
+  }
+}
+
+function renderDone() {
+  app.innerHTML = '';
+  const done = el('div', 'done');
+  done.appendChild(el('div', 'big', '💛'));
+  done.appendChild(el('h2', null, '고맙습니다!'));
+  done.appendChild(el('p', null, '남겨 주신 이야기는 선생님이 학생들에게 전해 줄 거예요.'));
+  const again = el('button', 'btn-ghost', '다른 주문도 평가하기');
+  again.onclick = () => location.reload();
+  done.appendChild(again);
+  app.appendChild(done);
+}
+
+boot();
+</script>
+</body>
+</html>

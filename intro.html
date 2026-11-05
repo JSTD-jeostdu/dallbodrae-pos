@@ -1,0 +1,507 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>달보드레 POS 안내</title>
+<meta name="description" content="특수학급 카페에서 쓰는 주문·제조·호출 앱 안내">
+<style>
+  /* 앱(index.html)과 같은 색감·글꼴을 쓴다 — 안내와 앱이 같은 물건으로 보이도록 */
+  :root {
+    --bg: #fdf7f2;
+    --panel: #ffffff;
+    --ink: #2a2320;
+    --muted: #7a6b60;
+    --line: #e8dcd2;
+    --brand: #b5651d;
+    --brand-dark: #8c4a12;
+    --ok: #2f7d4f;
+    --warn: #d98a00;
+    --danger: #c0392b;
+    --radius: 18px;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font-family: 'Noto Sans KR', system-ui, sans-serif;
+    font-size: 17px; line-height: 1.75;
+  }
+  .wrap { max-width: 860px; margin: 0 auto; padding: 0 20px 64px; }
+
+  /* ---- 머리말 ---- */
+  header { text-align: center; padding: 56px 0 32px; }
+  .eyebrow { color: var(--muted); font-size: 15px; letter-spacing: .06em; margin: 0 0 10px; }
+  h1 { margin: 0 0 12px; font-size: clamp(32px, 7vw, 52px); color: var(--brand); letter-spacing: .02em; }
+  .lead { margin: 0 auto; max-width: 620px; color: var(--ink); font-size: clamp(16px, 2.6vw, 19px); }
+
+  /* ---- 주소 카드 ---- */
+  .url-card {
+    display: flex; gap: 24px; align-items: center; flex-wrap: wrap; justify-content: center;
+    background: var(--panel); border: 3px solid var(--brand); border-radius: var(--radius);
+    padding: 22px 26px; margin: 28px 0 8px;
+  }
+  .url-card img { width: 148px; height: 148px; flex-shrink: 0; }
+  .url-text { flex: 1; min-width: 260px; }
+  .url-text small { display: block; color: var(--muted); font-size: 15px; margin-bottom: 4px; }
+  .url-text a {
+    font-size: clamp(22px, 4.6vw, 32px); font-weight: 900; color: var(--brand-dark);
+    text-decoration: none; word-break: break-all;
+  }
+  .url-text a:hover, .url-text a:focus { text-decoration: underline; }
+  .url-text p { margin: 10px 0 0; color: var(--muted); font-size: 15px; }
+
+  /* ---- 구역 ---- */
+  section { margin-top: 48px; }
+  h2 {
+    font-size: clamp(22px, 4vw, 28px); color: var(--brand); margin: 0 0 6px;
+    padding-bottom: 10px; border-bottom: 3px solid var(--line);
+  }
+  .sub { color: var(--muted); margin: 0 0 20px; font-size: 16px; }
+  h3 { font-size: 19px; margin: 0 0 8px; }
+
+  .card {
+    background: var(--panel); border: 2px solid var(--line); border-radius: var(--radius);
+    padding: 18px 20px; margin-bottom: 14px;
+  }
+  .grid { display: grid; gap: 14px; }
+  .grid.two { grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr)); }
+  .grid.roles { grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); }
+
+  /* ---- 역할 카드 ---- */
+  .role { text-align: center; }
+  .role .icon { font-size: 44px; line-height: 1; display: block; margin-bottom: 8px; }
+  .role b { display: block; font-size: 20px; }
+  .role small { color: var(--muted); display: block; margin-top: 4px; }
+  .role .who {
+    display: inline-block; margin-top: 10px; padding: 3px 12px; border-radius: 999px;
+    font-size: 14px; font-weight: 700; background: var(--bg); border: 2px solid var(--line);
+  }
+  .role.teacher .who { background: #f3ecff; border-color: #d9c9f5; }
+
+  /* ---- 단계 ---- */
+  ol.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; }
+  ol.steps li {
+    counter-increment: step; position: relative; padding: 0 0 0 52px; margin-bottom: 18px;
+  }
+  ol.steps li::before {
+    content: counter(step); position: absolute; left: 0; top: 2px;
+    width: 34px; height: 34px; border-radius: 50%; background: var(--brand); color: #fff;
+    font-weight: 900; display: flex; align-items: center; justify-content: center;
+  }
+  ol.steps li b { display: block; font-size: 18px; }
+
+  /* ---- 흐름 ---- */
+  .flow { display: flex; flex-wrap: wrap; gap: 10px; align-items: stretch; }
+  .flow .step {
+    flex: 1 1 150px; background: var(--panel); border: 2px solid var(--line);
+    border-radius: 14px; padding: 14px; text-align: center;
+  }
+  .flow .step .icon { font-size: 30px; display: block; }
+  .flow .step b { display: block; margin: 6px 0 2px; }
+  .flow .step small { color: var(--muted); }
+  .flow .arrow { align-self: center; color: var(--muted); font-size: 22px; }
+
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 11px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--muted); font-weight: 700; }
+  tr:last-child th, tr:last-child td { border-bottom: none; }
+  @media (min-width: 641px) { th { white-space: nowrap; width: 1%; } }
+  /* 좁은 화면에서는 표를 위아래로 쌓는다 — 가로로 밀리면 읽을 수 없다 */
+  @media (max-width: 640px) {
+    table, tbody, tr, th, td { display: block; width: 100%; }
+    th { border-bottom: none; padding-bottom: 0; }
+    td { padding-top: 4px; }
+    tr { border-bottom: 1px solid var(--line); padding-bottom: 10px; margin-bottom: 10px; }
+    tr:last-child { border-bottom: none; }
+  }
+
+  ul.ticks { list-style: none; margin: 0; padding: 0; }
+  ul.ticks li { padding-left: 26px; position: relative; margin-bottom: 8px; }
+  ul.ticks li::before { content: '✓'; position: absolute; left: 0; color: var(--ok); font-weight: 900; }
+
+  .note {
+    background: #fff8ec; border: 2px solid var(--warn); border-radius: var(--radius);
+    padding: 16px 18px; margin: 16px 0;
+  }
+  .note.safe { background: #eef7f1; border-color: var(--ok); }
+  .note p { margin: 0; }
+  .note p + p { margin-top: 8px; }
+
+  details.faq {
+    background: var(--panel); border: 2px solid var(--line); border-radius: 14px;
+    padding: 4px 18px; margin-bottom: 10px;
+  }
+  details.faq summary {
+    cursor: pointer; font-weight: 700; padding: 14px 0; font-size: 17px; list-style: none;
+    display: flex; align-items: center; gap: 10px;
+  }
+  details.faq summary::-webkit-details-marker { display: none; }
+  details.faq summary::before { content: '＋'; color: var(--brand); font-weight: 900; }
+  details.faq[open] summary::before { content: '－'; }
+  details.faq .body { padding: 0 0 16px 26px; }
+  details.faq p { margin: 0 0 8px; }
+
+  kbd {
+    display: inline-block; padding: 2px 9px; border-radius: 8px; background: var(--bg);
+    border: 2px solid var(--line); font: inherit; font-weight: 700; font-size: .92em; white-space: nowrap;
+  }
+  footer { margin-top: 56px; padding-top: 22px; border-top: 1px solid var(--line); color: var(--muted); font-size: 15px; }
+  footer a { color: var(--brand-dark); }
+
+  @media print {
+    body { background: #fff; font-size: 12pt; }
+    .card, .note, details.faq { break-inside: avoid; }
+    details.faq { border: none; padding: 0; }
+    details.faq .body { display: block !important; padding-left: 0; }
+    details.faq summary::before { content: ''; }
+    header { padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <p class="eyebrow">특수학급</p>
+  <h1>달보드레 POS</h1>
+  <p class="lead">
+    학생이 직접 주문을 받고, 음료를 만들고, 손님을 부를 수 있도록 만든 앱입니다.
+    설치할 것 없이 <b>주소만 열면</b> 태블릿·모니터·휴대폰 어디서나 바로 씁니다.
+  </p>
+
+  <div class="url-card">
+    <img src="qr-app.png" alt="앱 주소 QR 코드">
+    <div class="url-text">
+      <small>앱 주소</small>
+      <a href="https://dallbodrae-pos.web.app">dallbodrae-pos.web.app</a>
+      <p>태블릿 카메라로 QR을 비추면 바로 열립니다. 크롬 메뉴의 <kbd>홈 화면에 추가</kbd>를 누르면 아이콘이 생겨요.</p>
+    </div>
+  </div>
+
+  <div class="url-card" style="border-color: var(--ok)">
+    <img src="qr-feedback.png" alt="손님 평가 QR 코드">
+    <div class="url-text">
+      <small>손님 평가 QR — 카운터에 붙여 주세요</small>
+      <a href="https://dallbodrae-pos.web.app/feedback">dallbodrae-pos.web.app/feedback</a>
+      <p>손님이 음료를 받은 뒤 찍으면 자기 주문을 고르고 평가합니다. 이름은 남지 않아요.
+        결과는 관리 → 기록의 ‘손님 평가’에서 선생님만 봅니다.</p>
+    </div>
+  </div>
+</header>
+
+<section>
+  <h2>이런 앱입니다</h2>
+  <p class="sub">카페를 운영하는 동안 학생이 맡을 일과 선생님이 맡을 일을 화면으로 나눠 두었습니다.</p>
+
+  <div class="grid roles">
+    <div class="card role">
+      <span class="icon" aria-hidden="true">🧾</span>
+      <b>주문</b>
+      <small>메뉴를 눌러 담고 번호를 뽑습니다</small>
+      <span class="who">학생 · 태블릿</span>
+    </div>
+    <div class="card role">
+      <span class="icon" aria-hidden="true">☕</span>
+      <b>제조</b>
+      <small>만들 음료를 카드로 보고, 다 만들면 누릅니다</small>
+      <span class="who">학생 · 태블릿</span>
+    </div>
+    <div class="card role">
+      <span class="icon" aria-hidden="true">📣</span>
+      <b>호출</b>
+      <small>번호를 크게 띄우고 소리로 부릅니다</small>
+      <span class="who">손님이 보는 모니터</span>
+    </div>
+    <div class="card role teacher">
+      <span class="icon" aria-hidden="true">📋</span>
+      <b>매니저</b>
+      <small>주문 흐름 전체를 한 화면에서 보고 고칩니다</small>
+      <span class="who">선생님</span>
+    </div>
+    <div class="card role teacher">
+      <span class="icon" aria-hidden="true">⚙️</span>
+      <b>관리</b>
+      <small>메뉴·재료·기록. 비밀번호로 잠깁니다</small>
+      <span class="who">선생님</span>
+    </div>
+  </div>
+
+  <p class="sub" style="margin-top:14px">
+    주소를 열면 <b>늘 주문 화면</b>에서 시작합니다. 제조·호출·매니저·관리로 바꾸려면 화면 오른쪽 위
+    <b>‘역할 바꾸기’</b>를 누르세요. 기기를 다시 켜거나 새로 고치면 주문 화면으로 돌아오니,
+    아침에 기기마다 역할을 한 번씩 골라 주시면 됩니다.
+    기기가 두 대뿐이어도 괜찮습니다. 한 대는 주문, 한 대는 제조로 두고 호출은 생략해도 돌아갑니다.
+  </p>
+</section>
+
+<section>
+  <h2>처음 한 번만 하면 됩니다</h2>
+  <p class="sub">10분이면 끝납니다. 학생과 함께 하기 전에 선생님이 미리 해 두시면 좋아요.</p>
+
+  <div class="card">
+    <ol class="steps">
+      <li>
+        <b>관리 화면에 들어갑니다</b>
+        역할 선택에서 <kbd>⚙️ 관리</kbd>를 누르고 비밀번호 4자리를 넣습니다.
+        처음 비밀번호는 앱을 전달해 드린 선생님께 받으세요. 들어가자마자 <b>설정 탭에서 꼭 바꿔 주세요.</b>
+      </li>
+      <li>
+        <b>메뉴를 등록합니다</b>
+        <kbd>🍹 메뉴</kbd> 탭 → <kbd>＋ 메뉴 추가</kbd>. 이름과 가격을 넣고, 사진은 휴대폰으로 찍은 걸 그대로 올리면
+        앱이 알아서 줄입니다. 사진이 없으면 이모지(☕🧃🍪)로도 충분합니다.
+      </li>
+      <li>
+        <b>기기마다 역할을 고릅니다</b>
+        각 태블릿과 모니터에서 주소를 열고 역할을 한 번씩 눌러 줍니다.
+      </li>
+      <li>
+        <b>학생과 한 번 연습해 봅니다</b>
+        주문 → 제조 → 호출을 처음부터 끝까지 돌려 보세요. 연습이 끝나면
+        <kbd>관리 → 설정 → 리허설 기록 지우기</kbd>로 연습 주문만 깨끗이 지울 수 있습니다.
+        <b>메뉴와 재료는 그대로 남습니다.</b>
+      </li>
+    </ol>
+  </div>
+</section>
+
+<section>
+  <h2>하루는 이렇게 흘러갑니다</h2>
+  <p class="sub">학생이 누를 버튼은 화면마다 하나씩입니다.</p>
+
+  <div class="flow">
+    <div class="step">
+      <span class="icon" aria-hidden="true">🧑‍🍳</span>
+      <b>바리스타 고르기</b>
+      <small>오늘 만드는 학생의 사진을 누릅니다</small>
+    </div>
+    <span class="arrow" aria-hidden="true">→</span>
+    <div class="step">
+      <span class="icon" aria-hidden="true">🧾</span>
+      <b>주문</b>
+      <small>메뉴를 눌러 담고 <kbd>주문하기</kbd></small>
+    </div>
+    <span class="arrow" aria-hidden="true">→</span>
+    <div class="step">
+      <span class="icon" aria-hidden="true">☕</span>
+      <b>제조</b>
+      <small>다 만들면 <kbd>완료</kbd></small>
+    </div>
+    <span class="arrow" aria-hidden="true">→</span>
+    <div class="step">
+      <span class="icon" aria-hidden="true">📣</span>
+      <b>호출</b>
+      <small>번호가 크게 뜨고 음성이 나갑니다</small>
+    </div>
+    <span class="arrow" aria-hidden="true">→</span>
+    <div class="step">
+      <span class="icon" aria-hidden="true">🙆</span>
+      <b>수령</b>
+      <small>건네주며 <kbd>가져감</kbd></small>
+    </div>
+  </div>
+
+  <div class="note">
+    <p><b>호출 화면은 시작할 때 한 번 눌러 주세요.</b> 인터넷 브라우저는 사람이 화면을 한 번 건드리기 전에는
+      소리를 내지 못하게 막아 둡니다. <em>“화면을 한 번 눌러 주세요”</em> 안내가 떠 있다면 아직 소리가 안 나는 상태예요.</p>
+  </div>
+</section>
+
+<section>
+  <h2>학생을 위해 이렇게 만들었습니다</h2>
+  <p class="sub">특수학급에서 쓰는 앱이라, 처음부터 이 원칙으로 설계했습니다.</p>
+
+  <div class="grid two">
+    <div class="card">
+      <h3>글을 못 읽어도 됩니다</h3>
+      메뉴는 <b>사진과 글자를 항상 함께</b> 보여줍니다. 사진이 없으면 이모지가 대신합니다.
+    </div>
+    <div class="card">
+      <h3>누를 곳이 큽니다</h3>
+      모든 버튼이 손가락으로 겨냥하기 충분한 크기입니다. 글자 크기는 화면 오른쪽 위
+      <kbd>가 가 가</kbd>로 세 단계까지 키울 수 있고, <b>기기마다 따로 기억</b>합니다.
+    </div>
+    <div class="card">
+      <h3>모든 동작은 되돌릴 수 있습니다</h3>
+      완료·수령·품절·취소 뒤에는 잠깐 <kbd>되돌리기</kbd>가 뜹니다.
+      실수해도 혼나지 않는다는 걸 알아야 학생이 스스로 눌러 봅니다.
+    </div>
+    <div class="card">
+      <h3>색만으로 알리지 않습니다</h3>
+      품절은 흐려지면서 큰 ✕가 덮이고, 지연된 주문은 ⏰와 두꺼운 테두리가 함께 붙습니다.
+      색을 구분하기 어려워도 알 수 있습니다.
+    </div>
+    <div class="card">
+      <h3>번호를 바르게 읽습니다</h3>
+      “3번”을 <b>[세 번]</b>이 아니라 <b>[삼 번]</b>으로 부릅니다. 주문번호는 횟수가 아니라 이름표니까요.
+      화면에는 숫자를 그대로 크게 띄웁니다.
+    </div>
+    <div class="card">
+      <h3>실수를 미리 막습니다</h3>
+      품절인 메뉴는 아예 눌리지 않고, 관리 화면은 비밀번호로 잠깁니다.
+      나가거나 3분 동안 쓰지 않으면 저절로 다시 잠깁니다.
+    </div>
+  </div>
+</section>
+
+<section>
+  <h2>선생님이 쓰는 기능</h2>
+  <p class="sub">학생 화면은 단순하게 두고, 손봐야 하는 일은 모두 선생님 화면에 모았습니다.</p>
+
+  <div class="card">
+    <table>
+      <tr>
+        <th>주문을 고치고 싶을 때</th>
+        <td><b>매니저</b> 화면에서 제조 중 · 준비 완료 · 수령 완료 · 취소를 한눈에 보고 카드를 옮깁니다.
+          손님이 안 오면 <kbd>다시 호출</kbd>, 잘못 받은 주문은 <kbd>취소</kbd>(되살리기도 됩니다).
+          4열을 나란히 보는 태블릿 모드와 한 열씩 넘기는 모바일 모드를 고를 수 있어요.</td>
+      </tr>
+      <tr>
+        <th>바리스타를 등록할 때</th>
+        <td><b>관리 → 바리스타</b>에서 학생의 사진과 이름을 추가합니다. 메뉴를 등록하는 것과 똑같아요.
+          주문 화면 맨 위에 사진이 뜨고, 누가 만들었는지가 주문마다 기록됩니다.
+          오늘 안 온 학생은 <b>‘오늘 쉬어요’</b>를 켜 두면 주문 화면에서 잠깐 사라지고, 끄면 그대로 돌아옵니다.</td>
+      </tr>
+      <tr>
+        <th>두 명이 같이 만들 때</th>
+        <td>제조 화면 위쪽에서 자기 이름을 누르면 <b>자기가 맡은 주문만</b> 보입니다. ‘모두 보기’로 되돌릴 수 있어요.</td>
+      </tr>
+      <tr>
+        <th>학생별 활동 기록</th>
+        <td><b>관리 → 기록</b>의 ‘바리스타별 판매’에서 학생마다 몇 잔을 만들었는지 봅니다. 엑셀 파일에도 들어갑니다.</td>
+      </tr>
+      <tr>
+        <th>재료를 관리하고 싶을 때</th>
+        <td><b>관리 → 재료</b>에서 재료를 등록하고, 메뉴마다 레시피(1잔에 쓰는 양)를 넣으면
+          주문할 때마다 저절로 줄어듭니다. <b>레시피를 비워 둔 메뉴는 재고를 건드리지 않으니</b>
+          천천히 하나씩 채워도 됩니다.</td>
+      </tr>
+      <tr>
+        <th>장을 보러 갈 때</th>
+        <td>기준보다 적게 남은 재료가 <b>장볼 목록</b>에 저절로 모입니다. <kbd>목록 복사</kbd>로 메신저에 붙여넣거나
+          <kbd>인쇄</kbd>해서 들고 가세요. 사 온 뒤에는 <kbd>입고</kbd>로 양을 더합니다.</td>
+      </tr>
+      <tr>
+        <th>메신저로 주문을 받았을 때</th>
+        <td>주문 화면 맨 위 <b>‘🙋 누가 주문하나요?’</b>에서 고릅니다. <b>‘✏️ 직접 적기’</b>로 그때그때 적을 수 있고, 자주 주문하시는 분은 <b>관리 → 주문자</b>에 미리 등록해 두면 눌러서 고르기만 하면 됩니다.<br>
+          <b>관리 → 자리배치도</b>에 교무실 자리를 만들어 두면 주문 화면에 <b>‘🗺️ 자리배치도’</b> 칸이 생깁니다. 층을 눌러 펼친 뒤 이름을 고르면 ‘김민수 (2층 교무실)’처럼 주문에 남아요. 명단을 만들지 않으면 이 칸은 나오지 않습니다.
+          자주 주문하시는 분은 <b>관리 → 주문자</b>에 미리 등록해 두면 다음부터 누르기만 하면 됩니다.
+          받을 장소는 <b>이름에 괄호로 함께</b> 적어 두세요 (예: 김민수 선생님 (교무실)).
+          고른 이름은 제조 화면·호출 화면·매니저 보드에 함께 보이고, 기록과 엑셀 파일에도 남습니다.
+          카운터 앞 손님이면 고르지 않아도 됩니다.</td>
+      </tr>
+      <tr>
+        <th>손님 평가를 받고 싶을 때</th>
+        <td>카운터에 <b>평가 QR</b>을 붙여 두세요(아래에 있습니다). 손님이 음료를 받고 찍으면 자기 주문번호를
+          고르고 30초 안에 평가합니다. 음료 맛·주문 정확도·기다린 시간을 얼굴 그림으로 고르고,
+          만든 학생에게 <b>칭찬 스티커</b>를 남깁니다. 결과는 <b>관리 → 기록</b>의 ‘손님 평가’에서만 보여요.</td>
+      </tr>
+      <tr>
+        <th>수령 완료가 쌓이는 게 싫을 때</th>
+        <td>매니저 보드의 <b>수령 완료</b>는 10분이 지나면 저절로 사라집니다. 화면에는 방금 건넨 것만 남아
+          지금 할 일이 묻히지 않아요. <b>기록은 관리 → 기록에 그대로</b> 남고, 남겨 둘 시간은 관리 → 설정에서 바꿀 수 있습니다.</td>
+      </tr>
+      <tr>
+        <th>얼마나 팔았는지 볼 때</th>
+        <td><b>관리 → 기록</b>에서 오늘 · 이번 주 · 이번 달 · 기간 지정으로 봅니다.
+          메뉴별·시간대별 판매량, 재료 사용량, 취소 내역이 나오고 <b>엑셀 파일(CSV)</b>로 내려받을 수 있습니다.</td>
+      </tr>
+      <tr>
+        <th>번호를 1번부터 다시</th>
+        <td>날이 바뀌면 저절로 1번부터 시작합니다. 중간에 되돌리려면
+          <b>관리 → 설정 → 주문번호 다시 시작</b>. 아직 안 받아간 주문이 있으면 경고가 뜹니다.</td>
+      </tr>
+      <tr>
+        <th>오늘의 담당 학생</th>
+        <td><b>관리 → 담당</b>에 이름을 적으면 주문·제조 화면 위에 표시됩니다.</td>
+      </tr>
+    </table>
+  </div>
+</section>
+
+<section>
+  <h2>막히면 여기를 보세요</h2>
+  <p class="sub">앱 안에도 같은 안내가 있습니다. 역할 선택 화면 아래 <kbd>처음이신가요? 사용법 보기</kbd>를 누르세요.</p>
+
+  <details class="faq">
+    <summary>호출 화면에서 소리가 안 나요</summary>
+    <div class="body">
+      <p>화면을 손가락으로 한 번 눌러 주세요. 브라우저가 자동 재생을 막고 있어서, 사람이 한 번 건드려야 소리가 납니다.
+        새로고침하면 다시 한 번 눌러 줘야 합니다.</p>
+      <p>그래도 안 나면 기기 음량과 무음 모드를 확인하고, <b>관리 → 설정</b>에서 차임음이 꺼져 있지 않은지 보세요.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>호출 화면을 빠져나갈 수가 없어요</summary>
+    <div class="body">
+      <p>손님이 보는 화면이라 버튼을 일부러 숨겨 두었습니다. <b>오른쪽 위 구석의 흐린 <kbd>역할 바꾸기</kbd></b>를 누르면 됩니다.</p>
+      <p>전체화면이 불편하면 <b>관리 → 설정</b>에서 <kbd>호출 화면을 전체화면으로 열기</kbd>를 꺼 두세요.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>화면 오른쪽 위에 ‘연결 안 됨’이라고 떠요</summary>
+    <div class="body">
+      <p>인터넷이 끊겼거나 설정에 문제가 있는 경우입니다. 이때는 <b>그 기기 안에서만</b> 저장되어
+        다른 기기와 주문이 오가지 않습니다. 와이파이를 확인하고 새로고침해 주세요.</p>
+      <p>평소에는 <kbd>연결됨</kbd>이라고 떠 있어야 정상입니다.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>주문은 넣었는데 제조 화면에 안 떠요</summary>
+    <div class="body">
+      <p>두 기기 모두 <kbd>연결됨</kbd>인지 먼저 보세요. 한쪽이 <kbd>연습 모드</kbd>나 <kbd>연결 안 됨</kbd>이면
+        서로 다른 곳에 저장되어 보이지 않습니다.</p>
+      <p>이미 <kbd>완료</kbd>를 누른 주문은 제조 화면 아래쪽 <b>준비 완료</b>로 내려가 있습니다.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>글자가 너무 작아요 / 메뉴 사진이 흐려요</summary>
+    <div class="body">
+      <p>글자는 화면 오른쪽 위 <kbd>가 가 가</kbd>로 세 단계까지 키울 수 있습니다. 기기마다 따로 기억합니다.</p>
+      <p>사진은 올릴 때 자동으로 줄여서 저장합니다. 너무 흐리면 밝은 곳에서 가까이 찍은 사진으로 다시 올려 주세요.</p>
+    </div>
+  </details>
+
+  <details class="faq">
+    <summary>학생이 관리 화면을 열어 메뉴를 지울까 걱정돼요</summary>
+    <div class="body">
+      <p>관리 화면만 비밀번호로 잠겨 있습니다. 한 번 열어도 <b>그 화면을 나가는 순간 다시 잠기고</b>,
+        켜 둔 채 3분이 지나도 저절로 잠깁니다. 새로고침해도 다시 묻습니다.</p>
+      <p>처음 비밀번호는 꼭 바꿔 주세요. 학생이 가장 먼저 눌러 볼 숫자입니다.</p>
+    </div>
+  </details>
+</section>
+
+<section>
+  <h2>알아 두실 것</h2>
+
+  <div class="note safe">
+    <p><b>개인정보는 저장하지 않습니다.</b> 손님 이름·연락처·결제 정보를 받지 않습니다.
+      앱에 남는 사람 이름은 <b>‘오늘의 담당 학생’에 선생님이 적는 이름뿐</b>이고, 그마저도 비워 둘 수 있습니다.</p>
+  </div>
+
+  <div class="note">
+    <p><b>로그인 없이 운영합니다.</b> 주소를 아는 사람은 이 카페의 메뉴와 주문을 보고 바꿀 수 있습니다.
+      교실 안에서 쓰는 용도로는 충분하지만, <b>주소를 학교 밖에 널리 알리지는 마세요.</b></p>
+    <p>관리 화면 비밀번호는 <b>학생의 실수를 막는 잠금장치</b>이지 보안 장치가 아닙니다.</p>
+  </div>
+
+  <ul class="ticks">
+    <li><b>돈은 들지 않습니다.</b> 무료 한도 안에서 동작하며, 하루 30~50잔 규모라면 한도의 몇 %도 쓰지 않습니다.</li>
+    <li><b>인터넷이 잠깐 끊겨도</b> 화면이 비지 않습니다. 다만 새 주문번호를 받으려면 연결이 필요합니다.</li>
+    <li><b>새 학년도에 새로 시작</b>할 수 있습니다. 이전 기록은 지우지 않고 그대로 보관됩니다.</li>
+    <li><b>앱 이름은 바꿀 수 있습니다.</b> 지금은 임시로 ‘달보드레’입니다. 정하시면 화면·음성·파일 이름이 한 번에 바뀝니다.</li>
+  </ul>
+</section>
+
+<footer>
+  <p><b>달보드레 POS</b> · 앱 주소 <a href="https://dallbodrae-pos.web.app">dallbodrae-pos.web.app</a></p>
+  <p>고치고 싶은 점이나 불편한 점이 있으면 편하게 말씀해 주세요. 만든 사람이 바로 손봐 드립니다. — 정우쌤</p>
+</footer>
+
+</div>
+</body>
+</html>
